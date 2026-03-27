@@ -844,12 +844,35 @@ function createWindow() {
 
   // 🧠 BLUR HANDLER
  // 🧠 STRICT BLUR HANDLER
+// 🎯 Track window state
+let lastFocusTime = Date.now();
+let wasMinimized = false;
+
 win.on('blur', () => {
   if (!examStarted || isExiting) return;
 
-  registerViolation("Blur detected");
+  const now = Date.now();
+  const timeSinceLastFocus = now - lastFocusTime;
 
-  // 🔄 try to bring back immediately
+  // 🔄 QUICK TAB SWITCH (< 100ms) = Just refocus, NO violation
+  if (timeSinceLastFocus < 100) {
+    console.log("Quick tab switch detected → refocus only");
+    
+    setTimeout(() => {
+      if (!isExiting) {
+        win.show();
+        win.focus();
+        win.moveTop();
+        win.setAlwaysOnTop(true, "screen-saver");
+      }
+    }, 50);
+    return; // ✅ NO violation counted
+  }
+
+  // 🖥️ DESKTOP/SPACE SWITCH (longer blur) = Count violation
+  console.log("Desktop switch detected → violation");
+  registerViolation("Desktop switch");
+
   setTimeout(() => {
     if (!isExiting) {
       win.show();
@@ -857,7 +880,12 @@ win.on('blur', () => {
       win.moveTop();
       win.setAlwaysOnTop(true, "screen-saver");
     }
-  }, 200 );
+  }, 50);
+});
+
+// Track when window gets focus back
+win.on('focus', () => {
+  lastFocusTime = Date.now();
 });
 
   // 🔥 BACKGROUND CHECK
@@ -888,41 +916,81 @@ app.whenReady().then(createWindow);
 
 
 // 🔥 FINAL VIOLATION FUNCTION
-function registerViolation(reason) {
+// function registerViolation(reason) {
 
-  if (Date.now() - lastViolationTime < 500) return;
+//   if (Date.now() - lastViolationTime < 500) return;
+
+//   lastViolationTime = Date.now();
+
+//   violations++;
+
+//   console.log(`${reason} → Violation ${violations}/3`);
+
+//   // ❌ CLOSE IMMEDIATELY ( NO POPUP )
+//   if (violations >= 3) {
+
+//     console.log("3 violations → EXIT");
+
+//     isExiting = true;
+//     allowClose = true;
+//     examStarted = false;
+
+//     win.setAlwaysOnTop(false);
+
+//     app.quit();
+//     return;
+//   }
+
+//   // ⚠️ Show warning only for 1 & 2
+//   dialog.showMessageBox(win, {
+//     type: "warning",
+//     title: "Warning",
+//     message: `Do not switch desktop!\nViolation ${violations}/3`,
+//     buttons: ["OK"],
+//     noLink: true
+//   });
+// }
+
+function registerViolation(reason) {
+  // Prevent spam (only count once per 1 second)
+  if (Date.now() - lastViolationTime < 1000) return;
 
   lastViolationTime = Date.now();
-
   violations++;
 
-  console.log(`${reason} → Violation ${violations}/3`);
+  console.log(`⚠️ ${reason} → Violation ${violations}/3`);
 
-  // ❌ CLOSE IMMEDIATELY ( NO POPUP )
+  // ❌ 3 violations = AUTO EXIT (NO DIALOG)
   if (violations >= 3) {
-
-    console.log("3 violations → EXIT");
-
+    console.log("❌ 3 violations reached → CLOSING APP");
+    
     isExiting = true;
     allowClose = true;
     examStarted = false;
-
     win.setAlwaysOnTop(false);
-
-    app.quit();
+    
+    // Optional: Show final message before closing
+    dialog.showMessageBox(win, {
+      type: "error",
+      title: "Exam Terminated",
+      message: "Too many violations detected. Exam has been terminated.",
+      buttons: ["OK"]
+    }).then(() => {
+      app.quit();
+    });
+    
     return;
   }
 
-  // ⚠️ Show warning only for 1 & 2
+  // ⚠️ Show warning for violations 1 & 2
   dialog.showMessageBox(win, {
     type: "warning",
-    title: "Warning",
-    message: `Do not switch desktop!\nViolation ${violations}/3`,
+    title: "⚠️ Violation Warning",
+    message: `Do not switch desktops!\n\nViolation ${violations}/3\n\nOne more violation will close this exam.`,
     buttons: ["OK"],
     noLink: true
   });
 }
-
 
 
 /* =========================
