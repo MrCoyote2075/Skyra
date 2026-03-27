@@ -798,7 +798,6 @@
 // =================================================
 // =================================================
 // =================================================
-
 const { app, BrowserWindow, ipcMain, BrowserView, dialog } = require('electron');
 
 let win;
@@ -808,8 +807,9 @@ let allowClose = false;
 let isExiting = false;
 
 let violations = 0;
-let blurStartTime = 0;
 let lastViolationTime = 0;
+let blurStartTime = 0;
+let isBlurred = false;
 
 function createWindow() {
   win = new BrowserWindow({
@@ -842,22 +842,39 @@ function createWindow() {
     }
   });
 
-  // 🧠 BLUR HANDLER
- // 🧠 STRICT BLUR HANDLER
-// 🎯 Track window state
-let lastFocusTime = Date.now();
-let wasMinimized = false;
-
-win.on('blur', () => {
-  if (!examStarted || isExiting) return;
-
-  const now = Date.now();
-  const timeSinceLastFocus = now - lastFocusTime;
-
-  // 🔄 QUICK TAB SWITCH (< 100ms) = Just refocus, NO violation
-  if (timeSinceLastFocus < 100) {
-    console.log("Quick tab switch detected → refocus only");
+  // 🧠 BLUR EVENT - Window loses focus
+  win.on('blur', () => {
+    if (!examStarted || isExiting) return;
     
+    isBlurred = true;
+    blurStartTime = Date.now();
+    console.log("📵 Window lost focus - blur event triggered");
+  });
+
+  // 🎯 FOCUS EVENT - Window regains focus
+  win.on('focus', () => {
+    if (!examStarted || isExiting || !isBlurred) return;
+
+    const blurDuration = Date.now() - blurStartTime;
+    console.log(`📱 Window regained focus - blur duration: ${blurDuration}ms`);
+
+    isBlurred = false;
+
+    // ✅ TAB SWITCH (< 200ms) = Quick return = NO violation
+    if (blurDuration < 200) {
+      console.log("✅ Quick tab switch detected - NO violation");
+      win.show();
+      win.focus();
+      win.moveTop();
+      win.setAlwaysOnTop(true, "screen-saver");
+      return; // NO violation
+    }
+
+    // 🖥️ DESKTOP SWITCH (> 200ms) = Longer blur = COUNT violation
+    console.log("🖥️ Desktop switch detected - COUNTING violation");
+    registerViolation("Desktop switch detected");
+
+    // Refocus immediately
     setTimeout(() => {
       if (!isExiting) {
         win.show();
@@ -865,43 +882,30 @@ win.on('blur', () => {
         win.moveTop();
         win.setAlwaysOnTop(true, "screen-saver");
       }
-    }, 50);
-    return; // ✅ NO violation counted
-  }
+    }, 100);
+  });
 
-  // 🖥️ DESKTOP/SPACE SWITCH (longer blur) = Count violation
-  console.log("Desktop switch detected → violation");
-  registerViolation("Desktop switch");
-
-  setTimeout(() => {
-    if (!isExiting) {
-      win.show();
-      win.focus();
-      win.moveTop();
-      win.setAlwaysOnTop(true, "screen-saver");
-    }
-  }, 50);
-});
-
-// Track when window gets focus back
-win.on('focus', () => {
-  lastFocusTime = Date.now();
-});
-
-  // 🔥 BACKGROUND CHECK
+  // 🔥 BACKGROUND CHECK (Catch switches not captured by focus event)
   setInterval(() => {
     if (!examStarted || isExiting) return;
 
-    if (!win.isFocused()) {
-      registerViolation("Background Lost");
-
-      win.show();
-      win.focus();
-      win.moveTop();
-      win.setAlwaysOnTop(true, "screen-saver");
+    if (isBlurred && !win.isFocused()) {
+      const blurDuration = Date.now() - blurStartTime;
+      
+      // If blurred for > 500ms and still not focused → likely a desktop switch
+      if (blurDuration > 500) {
+        console.log("🖥️ Long blur detected - counting violation");
+        registerViolation("Desktop switch (interval check)");
+        
+        win.show();
+        win.focus();
+        win.moveTop();
+        win.setAlwaysOnTop(true, "screen-saver");
+        
+        isBlurred = false;
+      }
     }
-
-  }, 1000);
+  }, 500);
 
   // ⛔ Prevent close
   win.on('close', (e) => {
@@ -913,54 +917,20 @@ win.on('focus', () => {
 
 app.whenReady().then(createWindow);
 
-
-
-// 🔥 FINAL VIOLATION FUNCTION
-// function registerViolation(reason) {
-
-//   if (Date.now() - lastViolationTime < 500) return;
-
-//   lastViolationTime = Date.now();
-
-//   violations++;
-
-//   console.log(`${reason} → Violation ${violations}/3`);
-
-//   // ❌ CLOSE IMMEDIATELY ( NO POPUP )
-//   if (violations >= 3) {
-
-//     console.log("3 violations → EXIT");
-
-//     isExiting = true;
-//     allowClose = true;
-//     examStarted = false;
-
-//     win.setAlwaysOnTop(false);
-
-//     app.quit();
-//     return;
-//   }
-
-//   // ⚠️ Show warning only for 1 & 2
-//   dialog.showMessageBox(win, {
-//     type: "warning",
-//     title: "Warning",
-//     message: `Do not switch desktop!\nViolation ${violations}/3`,
-//     buttons: ["OK"],
-//     noLink: true
-//   });
-// }
-
+// 🔥 VIOLATION FUNCTION
 function registerViolation(reason) {
-  // Prevent spam (only count once per 1 second)
-  if (Date.now() - lastViolationTime < 1000) return;
+  // Prevent spam (only count once per 2 seconds)
+  if (Date.now() - lastViolationTime < 2000) {
+    console.log("⏱️ Violation cooldown - ignoring");
+    return;
+  }
 
   lastViolationTime = Date.now();
   violations++;
 
   console.log(`⚠️ ${reason} → Violation ${violations}/3`);
 
-  // ❌ 3 violations = AUTO EXIT (NO DIALOG)
+  // ❌ 3 violations = AUTO EXIT
   if (violations >= 3) {
     console.log("❌ 3 violations reached → CLOSING APP");
     
@@ -969,7 +939,6 @@ function registerViolation(reason) {
     examStarted = false;
     win.setAlwaysOnTop(false);
     
-    // Optional: Show final message before closing
     dialog.showMessageBox(win, {
       type: "error",
       title: "Exam Terminated",
@@ -991,7 +960,6 @@ function registerViolation(reason) {
     noLink: true
   });
 }
-
 
 /* =========================
    🎯 START EXAM
@@ -1034,6 +1002,7 @@ ipcMain.on('start-exam', (event, code) => {
   allowClose = false;
   isExiting = false;
   violations = 0;
+  isBlurred = false;
 
   win.setAlwaysOnTop(true, "screen-saver");
 
@@ -1112,7 +1081,7 @@ ipcMain.on('start-exam', (event, code) => {
     }
   });
 
-  // ⏱️ Timer
+  // ⏱️ Timer (30 minutes)
   setTimeout(() => {
     if (!isExiting) {
       dialog.showMessageBox(win, {
@@ -1124,7 +1093,6 @@ ipcMain.on('start-exam', (event, code) => {
   }, 30 * 60 * 1000);
 });
 
-
 /* =========================
    🔄 REFRESH
 ========================= */
@@ -1132,12 +1100,10 @@ ipcMain.on('refresh-exam', () => {
   if (view) view.webContents.reload();
 });
 
-
 /* =========================
    ❌ EXIT
 ========================= */
 ipcMain.on('exit-exam', () => {
-
   allowClose = true;
   isExiting = true;
   examStarted = false;
