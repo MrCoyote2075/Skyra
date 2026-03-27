@@ -842,23 +842,27 @@ function createWindow() {
     }
   });
 
-  // 🧠 BLUR HANDLER
- // 🧠 STRICT BLUR HANDLER
-win.on('blur', () => {
-  if (!examStarted || isExiting) return;
+  // 🧠 BLUR HANDLER (timing-based: tab switch vs desktop switch)
+  win.on('blur', () => {
+    if (!examStarted || isExiting) return;
 
-  registerViolation("Blur detected");
+    // Wait 150ms to distinguish a quick tab switch from a real desktop switch
+    setTimeout(() => {
+      if (!examStarted || isExiting) return;
 
-  // 🔄 try to bring back immediately
-  setTimeout(() => {
-    if (!isExiting) {
+      // If the window already regained focus it was a quick tab switch — no violation
+      if (win.isFocused()) return;
+
+      // Still not focused after 150ms → desktop switch → count as violation
+      registerViolation("Desktop switch detected");
+
+      // 🔄 Bring back window
       win.show();
       win.focus();
       win.moveTop();
       win.setAlwaysOnTop(true, "screen-saver");
-    }
-  }, 200 );
-});
+    }, 150);
+  });
 
   // 🔥 BACKGROUND CHECK
   setInterval(() => {
