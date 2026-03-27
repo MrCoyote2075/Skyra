@@ -1,16 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Skyra - Secure Exam Environment</title>
-  
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
 
-  <!-- Header -->
-  <div class="header">
+  <!-- App Header (Hidden initially) -->
+  <div class="header" id="app-header" style="display: none;">
     <div class="left">
       <img src="assets/logo1.png" class="logo" alt="Logo" onerror="this.style.display='none'" />
       <div class="title">Skyra</div>
@@ -22,34 +23,88 @@
     </div>
   </div>
 
-  <!-- Login Card -->
-  <div class="container" id="login-container">
-    <div class="glow-circle"></div> 
-    <div class="login-card">
+  <div class="container">
+    <div class="glow-circle"></div>
+
+    <!-- 🟢 1. SPLASH SCREEN -->
+    <div id="splash-screen" style="display: flex; flex-direction: column; align-items: center; z-index: 2;">
+      <img src="assets/logo1.png" alt="Logo"
+        style="width: 120px; height: 120px; border-radius: 20px; box-shadow: 0 0 30px rgba(59, 130, 246, 0.5); animation: pulse 2s infinite;"
+        onerror="this.style.display='none'">
+      <h1
+        style="font-size: 48px; margin: 20px 0 5px 0; background: linear-gradient(to right, #ffffff, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+        Skyra</h1>
+      <p style="color: var(--text-muted); font-size: 16px; text-transform: uppercase; letter-spacing: 4px;">Initializing
+        Secure Environment...</p>
+    </div>
+
+    <!-- 🟢 2. RULES SCREEN (Hidden initially) -->
+    <div class="card" id="rules-screen" style="display: none; width: 500px; flex-direction: column;">
+      <div
+        style="margin: 0 auto 15px auto; background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 50%; border: 1px solid rgba(59, 130, 246, 0.2);">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+      </div>
+      <h2 style="margin-top: 0;">Exam Instructions</h2>
+      <ul class="rules-list">
+        <li><strong style="color: var(--primary);">Stay Focused:</strong> Do not switch tabs, minimize the app, or open
+          other applications.</li>
+        <li><strong style="color: var(--primary);">Violated Actions:</strong> Copying, pasting, screenshot and keyboard shortcuts
+          are Violated. Right-click is not allowed.</li>
+        <li><strong style="color: var(--primary);">Strict Monitoring:</strong> Losing focus for more than <strong>5
+            seconds</strong> will result in immediate exam termination.</li>
+        <li><strong style="color: var(--primary);">Hardware Violations:</strong> Dual monitors and screen sharing software are
+          strictly prohibited.</li>
+      </ul>
+      <button class="start" onclick="acceptRules()">I Accept All Conditions</button>
+    </div>
+
+    <!-- 🟢 3. LOGIN CARD (Hidden initially) -->
+    <div class="card" id="login-container" style="display: none;">
       <h2>Join Contest</h2>
-      <p style="color: var(--text-muted); font-size: 14px;">Enter secure access code</p>
+      <p style="color: var(--text-muted); font-size: 14px;">Enter Skyra access code</p>
       <div class="input-group">
         <label>Access Code</label>
-        <input type="text" id="code" placeholder="e.g. X7B-9Q2" autocomplete="off" />
+        <input type="text" id="code" placeholder="e.g. DP-XXXXXX" autocomplete="off" />
       </div>
-      <button class="start" onclick="startExam()">Launch Exam securely</button>
+      <button class="start" onclick="startExam()">Launch Exam</button>
     </div>
   </div>
 
-  <!-- BLUR WARNING OVERLAY (The Countdown) -->
+  <!-- BLUR WARNING OVERLAY -->
   <div id="warning-overlay" class="overlay">
     <div class="warning-text">⚠️ RETURN TO EXAM ⚠️</div>
     <p style="font-size: 24px;">Violation detected! App closing in...</p>
     <div class="countdown" id="countdown-text">5</div>
   </div>
 
-  <!-- POST-WARNING OVERLAY (Shown after they return) -->
+  <!-- POST-WARNING OVERLAY -->
   <div id="post-warning-overlay" class="overlay">
     <div class="modal-box" style="border-color: #f59e0b;">
-      <h3 style="color: #f59e0b; font-size: 24px; margin-top:0;">⚠️ Warning Recorded</h3>
-      <p style="font-size: 16px; line-height: 1.5;">You switched tabs or lost focus on the exam window. This action has been flagged.</p>
-      <p style="font-size: 14px; color: var(--text-muted);">Please refrain from navigating away from the exam environment.</p>
-      <button class="btn-cancel" style="margin-top: 15px; width: 100%; background: #f59e0b; color: #000;" onclick="dismissPostWarning()">I Understand, Continue Exam</button>
+      <h3 style="color: #f59e0b; font-size: 24px; margin-top:0;">⚠️ Warning</h3>
+      <p style="font-size: 16px; line-height: 1.5;">You were switching tabs or lost focus on the exam window. This
+        action has
+        been flagged.</p>
+      <p style="font-size: 14px; color: var(--text-muted);">Please refrain from navigating away from the exam
+        environment.</p>
+      <button class="btn-cancel" style="margin-top: 15px; width: 100%; background: #f59e0b; color: #000;"
+        onclick="dismissPostWarning()">I Understand, Continue Exam</button>
+    </div>
+  </div>
+
+  <!-- 🟢 NEW: TERMINATED OVERLAY -->
+  <div id="terminated-overlay" class="overlay" style="background: rgba(15, 23, 42, 0.98);">
+    <div class="modal-box" style="border-color: #ef4444; max-width: 500px; background: #0f0505;">
+      <h3 style="color: #ef4444; font-size: 32px; margin-top:0;">🛑 Exam Terminated</h3>
+      <p style="font-size: 18px; line-height: 1.5;">You were left the secure environment for more than 5
+        seconds.</p>
+      <p style="font-size: 16px; color: var(--text-muted); margin-top: 10px;">Your session has been Terminated.</p>
+      <button class="btn-confirm" style="margin-top: 25px; width: 100%; font-size: 18px; padding: 15px;"
+        onclick="forceQuitApp()">Close</button>
     </div>
   </div>
 
@@ -59,7 +114,6 @@
       <h3 style="font-size: 24px; margin-top:0;">Exit Exam?</h3>
       <p>Are you sure you want to exit? Your progress may be lost.</p>
       <div class="btn-group">
-        <!-- Calls cancelExit() to restore the view -->
         <button class="btn-cancel" onclick="cancelExit()">Cancel</button>
         <button class="btn-confirm" onclick="confirmExit()">Yes, Exit</button>
       </div>
@@ -77,4 +131,5 @@
 
   <script src="renderer.js"></script>
 </body>
+
 </html>

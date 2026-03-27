@@ -1,5 +1,20 @@
 let countdownInterval;
 
+// 🟢 Splash Screen & Rules Flow
+window.addEventListener('DOMContentLoaded', () => {
+  // Wait 3 seconds, then hide Splash and show Rules
+  setTimeout(() => {
+    document.getElementById('splash-screen').style.display = 'none';
+    document.getElementById('rules-screen').style.display = 'flex';
+  }, 3000);
+});
+
+// Called when they click "I Accept All Conditions"
+function acceptRules() {
+  document.getElementById('rules-screen').style.display = 'none';
+  document.getElementById('login-container').style.display = 'block'; // Make login card visible
+}
+
 function startExam() {
   const code = document.getElementById("code").value;
   if (!code) {
@@ -16,26 +31,28 @@ function hideAllOverlays() {
   document.getElementById("post-warning-overlay").style.display = "none";
 }
 
-// Show HTML Exit Modal (Hides the exam view so it doesn't cover the modal)
 function requestExit() {
   window.electronAPI.hideView();
   hideAllOverlays();
   document.getElementById("exit-overlay").style.display = "flex";
 }
 
-// Cancel Exit (Puts the exam view back)
 function cancelExit() {
   hideAllOverlays();
   window.electronAPI.showView();
 }
 
-// Actually exit
 function confirmExit() {
   window.electronAPI.exitExam();
 }
 
 function refreshExam() {
   window.electronAPI.refreshExam();
+}
+
+// 🟢 Sends final kill signal to main process
+function forceQuitApp() {
+  window.electronAPI.forceQuit();
 }
 
 function showError(msg) {
@@ -46,19 +63,19 @@ function showError(msg) {
 
 window.electronAPI.onExamStarted(() => {
   document.getElementById("login-container").style.display = "none";
+  document.getElementById("app-header").style.display = "flex"; // Show header only when exam starts
 });
 
 window.electronAPI.onShowError((event, msg) => {
   showError(msg);
 });
 
-// The 5-Second countdown when they tab out
 window.electronAPI.onShowWarning(() => {
   if (countdownInterval) clearInterval(countdownInterval);
   hideAllOverlays();
   document.getElementById("warning-overlay").style.display = "flex";
   
-  let time = 6; // Updated to 5 seconds
+  let time = 5; 
   document.getElementById("countdown-text").innerText = time;
   
   countdownInterval = setInterval(() => {
@@ -69,14 +86,12 @@ window.electronAPI.onShowWarning(() => {
   }, 1000);
 });
 
-// The Warning Popup AFTER they focus back in
 window.electronAPI.onShowPostWarning(() => {
   if (countdownInterval) clearInterval(countdownInterval);
   hideAllOverlays();
   document.getElementById("post-warning-overlay").style.display = "flex";
 });
 
-// Resumes the exam after they acknowledge the warning
 function dismissPostWarning() {
   hideAllOverlays();
   window.electronAPI.resumeExam();
@@ -85,4 +100,16 @@ function dismissPostWarning() {
 window.electronAPI.onHideWarning(() => {
   if (countdownInterval) clearInterval(countdownInterval);
   hideAllOverlays();
+});
+
+// 🟢 Shows the Termination screen when 5 seconds are up
+window.electronAPI.onShowTerminated(() => {
+  if (countdownInterval) clearInterval(countdownInterval);
+  hideAllOverlays();
+  
+  document.getElementById("login-container").style.display = "none";
+  document.getElementById("app-header").style.display = "none";
+  
+  // Show the final death screen
+  document.getElementById("terminated-overlay").style.display = "flex";
 });
