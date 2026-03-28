@@ -5,8 +5,12 @@ const {
     BrowserView,
     screen,
     clipboard,
+    session, // 🟢 NEW: Import session to manage cache/cookies
 } = require("electron");
 const path = require("path");
+
+// Pretend to be a normal Chrome browser so Google OAuth doesn't block us
+app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 let mainWindow;
 let view;
@@ -16,9 +20,13 @@ let blurTimer = null;
 
 const ALLOWED_DOMAINS = [
     "hackerearth.com",
+    "hackerrank.com",
     "is.gd",
     "accounts.google.com",
     "oauth",
+    "github.com",
+    "linkedin.com",
+    "facebook.com"
 ];
 
 function decode(encodedStr) {
@@ -42,7 +50,8 @@ function decode(encodedStr) {
 function preventShortcuts(event, input) {
     if (
         input.key === "F12" ||
-        input.meta ||
+        input.key === "F11" || 
+        input.meta ||           
         (input.control &&
             ["w", "t", "c", "v"].includes(input.key.toLowerCase())) ||
         (input.alt && input.key === "Tab") ||
@@ -57,6 +66,10 @@ function createMainWindow() {
         fullscreen: true,
         kiosk: true,
         alwaysOnTop: true,
+        resizable: false,    
+        movable: false,      
+        minimizable: false,  
+        maximizable: false,  
         webPreferences: {
             preload: path.join(__dirname, "preload.js"),
             contextIsolation: true,
@@ -98,7 +111,7 @@ app.on("browser-window-blur", () => {
     const activeWindow = BrowserWindow.getFocusedWindow();
     if (activeWindow) return;
 
-    console.log("📵 App lost focus! 5-sec timer started.");
+    console.log("📵 App lost focus! 3-sec timer started.");
     clipboard.clear();
 
     if (view && mainWindow) {
@@ -107,10 +120,10 @@ app.on("browser-window-blur", () => {
     mainWindow.webContents.send("show-warning");
 
     blurTimer = setTimeout(() => {
-        console.log("❌ 5 Seconds up. Terminating UI shown.");
+        console.log("❌ 3 Seconds up. Terminating UI shown.");
         isExiting = true;
         terminateExam();
-    }, 5000);
+    }, 3000); 
 });
 
 app.on("browser-window-focus", () => {
@@ -124,7 +137,12 @@ app.on("browser-window-focus", () => {
     mainWindow.setAlwaysOnTop(true, "screen-saver");
 });
 
-app.whenReady().then(createMainWindow);
+// 🟢 NEW: Wait for app to be ready, clear all data, THEN create window
+app.whenReady().then(async () => {
+    // This effectively forces an "Incognito Mode" fresh start
+    await session.defaultSession.clearStorageData();
+    createMainWindow();
+});
 
 // =========================
 // IPC HANDLERS
@@ -148,6 +166,7 @@ ipcMain.on("start-exam", (event, code) => {
 
     examStarted = true;
     mainWindow.webContents.send("exam-started");
+    mainWindow.webContents.send("show-loader"); 
 
     view = new BrowserView({
         webPreferences: { contextIsolation: true, nodeIntegration: false },
@@ -175,14 +194,25 @@ ipcMain.on("start-exam", (event, code) => {
         return {
             action: "allow",
             overrideBrowserWindowOptions: {
-                fullscreen: true,
+                width: 600,
+                height: 700,
+                parent: mainWindow,
+                modal: true,
                 alwaysOnTop: true,
+                autoHideMenuBar: true,
                 webPreferences: {
                     contextIsolation: true,
                     nodeIntegration: false,
                 },
             },
         };
+    });
+
+    view.webContents.on('did-stop-loading', () => {
+        mainWindow.webContents.send('hide-loader');
+    });
+    view.webContents.on('did-fail-load', () => {
+        mainWindow.webContents.send('hide-loader');
     });
 
     app.on("web-contents-created", (e, contents) => {
@@ -225,13 +255,16 @@ ipcMain.on("refresh-exam", () => {
     if (view) view.webContents.reload();
 });
 
-ipcMain.on("exit-exam", () => {
+// 🟢 NEW: Clear data immediately before exiting
+ipcMain.on("exit-exam", async () => {
     isExiting = true;
+    await session.defaultSession.clearStorageData();
     app.quit();
 });
 
-// 🟢 NEW: Handler for the "Close Application" button
-ipcMain.on("force-quit", () => {
+// 🟢 NEW: Clear data immediately before Force Quitting
+ipcMain.on("force-quit", async () => {
     isExiting = true;
+    await session.defaultSession.clearStorageData();
     app.quit();
 });

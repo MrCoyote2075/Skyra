@@ -16,6 +16,10 @@
       <img src="assets/logo1.png" class="logo" alt="Logo" onerror="this.style.display='none'" />
       <div class="title">Skyra</div>
       <div class="badge">SECURE MODE</div>
+      <!-- 🟢 NEW: Network Indicator -->
+      <div class="badge" id="network-status"
+        style="margin-left: 10px; transition: all 0.3s ease; background: rgba(59, 130, 246, 0.15); color: #3b82f6;">
+        Checking...</div>
     </div>
     <div class="right">
       <button class="btn-header refresh" onclick="refreshExam()">Refresh</button>
@@ -26,7 +30,7 @@
   <div class="container">
     <div class="glow-circle"></div>
 
-    <!-- 🟢 1. SPLASH SCREEN -->
+    <!-- SPLASH SCREEN -->
     <div id="splash-screen" style="display: flex; flex-direction: column; align-items: center; z-index: 2;">
       <img src="assets/logo1.png" alt="Logo"
         style="width: 120px; height: 120px; border-radius: 20px; box-shadow: 0 0 30px rgba(59, 130, 246, 0.5); animation: pulse 2s infinite;"
@@ -38,7 +42,7 @@
         Secure Environment...</p>
     </div>
 
-    <!-- 🟢 2. RULES SCREEN (Hidden initially) -->
+    <!-- RULES SCREEN -->
     <div class="card" id="rules-screen" style="display: none; width: 500px; flex-direction: column;">
       <div
         style="margin: 0 auto 15px auto; background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 50%; border: 1px solid rgba(59, 130, 246, 0.2);">
@@ -53,17 +57,19 @@
       <ul class="rules-list">
         <li><strong style="color: var(--primary);">Stay Focused:</strong> Do not switch tabs, minimize the app, or open
           other applications.</li>
-        <li><strong style="color: var(--primary);">Violated Actions:</strong> Copying, pasting, screenshot and keyboard shortcuts
+        <li><strong style="color: var(--primary);">Violated Actions:</strong> Copying, pasting, screenshot and keyboard
+          shortcuts
           are Violated. Right-click is not allowed.</li>
-        <li><strong style="color: var(--primary);">Strict Monitoring:</strong> Losing focus for more than <strong>5
+        <li><strong style="color: var(--primary);">Strict Monitoring:</strong> Losing focus for more than <strong>3
             seconds</strong> will result in immediate exam termination.</li>
-        <li><strong style="color: var(--primary);">Hardware Violations:</strong> Dual monitors and screen sharing software are
+        <li><strong style="color: var(--primary);">Hardware Violations:</strong> Dual monitors and screen sharing
+          software are
           strictly prohibited.</li>
       </ul>
       <button class="start" onclick="acceptRules()">I Accept All Conditions</button>
     </div>
 
-    <!-- 🟢 3. LOGIN CARD (Hidden initially) -->
+    <!-- LOGIN CARD -->
     <div class="card" id="login-container" style="display: none;">
       <h2>Join Contest</h2>
       <p style="color: var(--text-muted); font-size: 14px;">Enter Skyra access code</p>
@@ -72,6 +78,9 @@
         <input type="text" id="code" placeholder="e.g. DP-XXXXXX" autocomplete="off" />
       </div>
       <button class="start" onclick="startExam()">Launch Exam</button>
+      <!-- 🟢 NEW: Home Screen Exit Button -->
+      <button class="btn-cancel" style="width: 100%; margin-top: 15px; padding: 14px; font-size: 16px;"
+        onclick="requestExit()">Exit Application</button>
     </div>
   </div>
 
@@ -79,7 +88,7 @@
   <div id="warning-overlay" class="overlay">
     <div class="warning-text">⚠️ RETURN TO EXAM ⚠️</div>
     <p style="font-size: 24px;">Violation detected! App closing in...</p>
-    <div class="countdown" id="countdown-text">5</div>
+    <div class="countdown" id="countdown-text">3</div>
   </div>
 
   <!-- POST-WARNING OVERLAY -->
@@ -96,11 +105,11 @@
     </div>
   </div>
 
-  <!-- 🟢 NEW: TERMINATED OVERLAY -->
+  <!-- TERMINATED OVERLAY -->
   <div id="terminated-overlay" class="overlay" style="background: rgba(15, 23, 42, 0.98);">
     <div class="modal-box" style="border-color: #ef4444; max-width: 500px; background: #0f0505;">
       <h3 style="color: #ef4444; font-size: 32px; margin-top:0;">🛑 Exam Terminated</h3>
-      <p style="font-size: 18px; line-height: 1.5;">You were left the secure environment for more than 5
+      <p style="font-size: 18px; line-height: 1.5;">You were left the secure environment for more than 3
         seconds.</p>
       <p style="font-size: 16px; color: var(--text-muted); margin-top: 10px;">Your session has been Terminated.</p>
       <button class="btn-confirm" style="margin-top: 25px; width: 100%; font-size: 18px; padding: 15px;"
@@ -118,6 +127,12 @@
         <button class="btn-confirm" onclick="confirmExit()">Yes, Exit</button>
       </div>
     </div>
+  </div>
+
+  <!-- 🟢 NEW: LOADING OVERLAY -->
+  <div id="loading-overlay" class="overlay" style="z-index: 99999;">
+    <div class="loader"></div>
+    <p style="margin-top: 20px; font-size: 18px; color: var(--primary); font-weight: 600;">Loading Environment...</p>
   </div>
 
   <!-- ERROR MODAL -->

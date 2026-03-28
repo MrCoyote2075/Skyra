@@ -117,3 +117,18 @@ button.start:active { transform: translateY(0); }
 
 .btn-confirm { padding: 10px 20px; border-radius: 8px; background: var(--danger); color: white; border: none; cursor: pointer; font-weight: 600; transition: background 0.2s; }
 .btn-confirm:hover { background: var(--danger-hover); }
+
+/* 🟢 NEW: Loader Spinner CSS */
+.loader {
+    width: 60px;
+    height: 60px;
+    border: 6px solid var(--surface-border);
+    border-top: 6px solid var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
