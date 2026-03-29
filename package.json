@@ -1,17 +1,33 @@
 {
-  "name": "exam-browser",
-  "version": "1.0.0",
-  "description": "",
-  "main": "main.js",
-  "scripts": {
-    "start" : "electron .",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "devDependencies": {
-    "electron": "^41.0.4"
-  }
+    "name": "skyra-exam-launcher",
+    "version": "1.0.0",
+    "description": "Secure Exam Browser",
+    "main": "main.js",
+    "author": "MrCoyote2075",
+    "scripts": {
+        "start": "electron .",
+        "dist": "electron-builder",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "build": {
+        "appId": "com.dhanush.skyraexamlauncher",
+        "productName": "Skyra Exam Launcher",
+        "win": {
+            "target": "nsis",
+            "icon": "assets/AppLogo.ico"
+        },
+        "mac": {
+            "target": "dmg"
+        },
+        "linux": {
+            "target": "AppImage"
+        }
+    },
+    "keywords": [],
+    "license": "ISC",
+    "type": "commonjs",
+    "devDependencies": {
+        "electron": "^41.0.4",
+        "electron-builder": "^26.8.1"
+    }
 }
