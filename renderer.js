@@ -1,6 +1,6 @@
 let countdownInterval;
 
-// 🟢 Network Latency Checker
+// Network Latency Checker
 function checkNetwork() {
     const start = Date.now();
     // Using a fast, reliable endpoint with no-cors to avoid CORS errors.
@@ -36,6 +36,7 @@ function checkNetwork() {
             }
         });
 }
+
 // Run network check immediately and every 5 seconds
 setTimeout(checkNetwork, 1000);
 setInterval(checkNetwork, 5000);
@@ -43,10 +44,10 @@ setInterval(checkNetwork, 5000);
 window.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => {
         document.getElementById("splash-screen").style.display = "none";
+        // document.getElementById("credits").style.display = "block"; 
         document.getElementById("rules-screen").style.display = "flex";
-        // 🟢 Show the top bar when the splash screen ends!
         document.getElementById("app-header").style.display = "flex"; 
-    }, 3000);
+    }, 4000);
 });
 
 
@@ -57,7 +58,7 @@ function acceptRules() {
 }
 
 function startExam() {
-    // 🟢 NEW: Prevent loading if there is no internet
+    // Prevent loading if there is no internet
     const networkText = document.getElementById("network-status").innerText;
     if (networkText.includes("Offline") || networkText.includes("Checking")) {
         showError("No internet connection! Please check your network and try again.");
@@ -97,7 +98,7 @@ function confirmExit() {
 }
 
 function refreshExam() {
-    document.getElementById("loading-overlay").style.display = "flex"; // Show loader
+    document.getElementById("loading-overlay").style.display = "flex"; 
     window.electronAPI.refreshExam();
 }
 
@@ -186,7 +187,7 @@ window.electronAPI.onShowTerminated((event, reason) => {
 
 // Home Button Functionality
 function goHome() {
-    window.electronAPI.goHome(); // Calls our new safe memory-cleanup function
+    window.electronAPI.goHome(); 
     document.getElementById("login-container").style.display = "block";
     document.getElementById("btn-home").style.display = "none";
     document.getElementById("btn-refresh").style.display = "none";

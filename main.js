@@ -55,7 +55,7 @@ function preventShortcuts(event, input) {
 
     if (
         input.key === "F12" ||
-        // input.key === "F11" ||
+        input.key === "F11" ||
         (modifier && ["w", "t"].includes(input.key.toLowerCase())) ||
         (input.alt && input.key === "Tab") ||
         (input.alt && input.key === "F4")

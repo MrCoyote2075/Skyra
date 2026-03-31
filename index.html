@@ -39,7 +39,7 @@
         style="width: 120px; height: 120px; border-radius: 20px; box-shadow: 0 0 30px rgba(59, 130, 246, 0.5); animation: pulse 2s infinite;"
         onerror="this.style.display='none'">
       <h1
-        style="font-size: 48px; margin: 20px 0 5px 0; background: linear-gradient(to right, #ffffff, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+        style="font-size: 48px; margin: 20px 0 5px 0; background: linear-gradient(to right, #ffffff, #60a5fa); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">
         Skyra</h1>
       <p style="color: var(--text-muted); font-size: 16px; text-transform: uppercase; letter-spacing: 4px;">Initializing
         Secure Environment...</p>
@@ -58,13 +58,14 @@
       </div>
       <h2 style="margin-top: 0;">Exam Instructions</h2>
       <ul class="rules-list">
-        <li><strong style="color: var(--primary);">Stay Focused:</strong> Do not switch tabs or Desktops, minimize the app, or open
+        <li><strong style="color: var(--primary);">Stay Focused:</strong> Do not switch tabs or Desktops, minimize the
+          app, or open
           other applications.</li>
         <li><strong style="color: var(--primary);">Violated Actions:</strong> Keyboard
           shortcuts such as (eg. alt + TAB, alt + F4, win + tab)
           are Violated. Right-click is not allowed.</li>
-        <li><strong style="color: var(--primary);">Strict Monitoring:</strong> switching 3 times or Losing focus for more than <strong>5
-            seconds</strong> will result in immediate exam termination.</li>
+        <li><strong style="color: var(--primary);">Strict Monitoring:</strong> Switching <strong>3 times</strong> or Losing focus for
+          more than <strong>5 seconds</strong> will result in immediate exam termination.</li>
         <li><strong style="color: var(--primary);">Hardware Violations:</strong> Dual monitors and screen sharing
           software are
           strictly prohibited.</li>
@@ -81,6 +82,11 @@
         <input type="text" id="code" placeholder="eg. DP-XXXXXX" autocomplete="off" />
       </div>
       <button class="start" onclick="startExam()">Launch Exam</button>
+    </div>
+
+    <div class="credits-footer" id="credits">
+      <p>Copyright &copy; 2026 Skyra.</p>
+      <p>Designed and Developed by Dhanush & Praveen.</p>
     </div>
 
     <!-- BLUR WARNING OVERLAY -->
