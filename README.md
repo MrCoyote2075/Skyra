@@ -112,5 +112,5 @@ This project is licensed under the ISC License.
 
 ---
 <div align="center">
-  <i>Engineered and Designed with ❤️ by <a href="https://github.com/MrCoyote2075">MrCoyote2075</a></i>
+  <i>Engineered and Designed with ❤️ by <a href="https://github.com/MrCoyote2075">Dhanush.N (MrCoyote2075)</a></i>
 </div>
