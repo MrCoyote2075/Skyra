@@ -18,6 +18,7 @@ let view;
 let examStarted = false;
 let isExiting = false;
 let blurTimer = null;
+let tabSwitchCount = 0;
 
 const ALLOWED_DOMAINS = [
     "hackerearth.com",
@@ -49,12 +50,13 @@ function decode(encodedStr) {
 }
 
 function preventShortcuts(event, input) {
+    const isMac = process.platform === 'darwin';
+    const modifier = isMac ? input.meta : input.control;
+
     if (
         input.key === "F12" ||
-        input.key === "F11" ||
-        input.meta ||
-        (input.control &&
-            ["w", "t", "c", "v"].includes(input.key.toLowerCase())) ||
+        // input.key === "F11" ||
+        (modifier && ["w", "t"].includes(input.key.toLowerCase())) ||
         (input.alt && input.key === "Tab") ||
         (input.alt && input.key === "F4")
     ) {
@@ -93,17 +95,17 @@ function createMainWindow() {
     screen.on("display-added", () => {
         if (examStarted && !isExiting) {
             console.log("New monitor plugged in! Terminating.");
-            terminateExam();
+            terminateExam("Multiple monitors detected during the exam."); 
         }
     });
 }
 
-function terminateExam() {
+function terminateExam(reason) {
     examStarted = false;
     if (view && mainWindow) {
         mainWindow.removeBrowserView(view);
     }
-    mainWindow.webContents.send("show-terminated");
+    mainWindow.webContents.send("show-terminated", reason);
 }
 
 app.on("browser-window-blur", () => {
@@ -112,19 +114,27 @@ app.on("browser-window-blur", () => {
     const activeWindow = BrowserWindow.getFocusedWindow();
     if (activeWindow) return;
 
-    console.log("App lost focus! 3-sec timer started.");
-    clipboard.clear();
+    tabSwitchCount++;
 
+    if (tabSwitchCount > 3) {
+        console.log("Tab switch limit exceeded! Terminating.");
+        isExiting = true;
+        terminateExam("You exceeded the maximum allowed tab switches.");
+        return;
+    }
+
+    console.log("App lost focus! 5-sec timer started.");
+    
     if (view && mainWindow) {
         mainWindow.removeBrowserView(view);
     }
-    mainWindow.webContents.send("show-warning");
+    mainWindow.webContents.send("show-warning", tabSwitchCount);
 
     blurTimer = setTimeout(() => {
-        console.log("3 Seconds up. Terminating UI shown.");
+        console.log("5 Seconds up. Terminating UI shown.");
         isExiting = true;
-        terminateExam();
-    }, 3000);
+        terminateExam("You left the application for more than 5 seconds.");
+    }, 5000);
 });
 
 app.on("browser-window-focus", () => {
@@ -134,7 +144,7 @@ app.on("browser-window-focus", () => {
     clearTimeout(blurTimer);
     blurTimer = null;
 
-    mainWindow.webContents.send("show-post-warning");
+    mainWindow.webContents.send("show-post-warning", tabSwitchCount);
     mainWindow.setAlwaysOnTop(true, "screen-saver");
 });
 
@@ -147,6 +157,8 @@ app.whenReady().then(async () => {
 
 // IPC HANDLERS
 ipcMain.on("start-exam", (event, code) => {
+    tabSwitchCount = 0; 
+
     if (screen.getAllDisplays().length > 1) {
         mainWindow.webContents.send(
             "show-error",
@@ -210,8 +222,15 @@ ipcMain.on("start-exam", (event, code) => {
     view.webContents.on("did-stop-loading", () => {
         mainWindow.webContents.send("hide-loader");
     });
-    view.webContents.on("did-fail-load", () => {
+
+     view.webContents.on("did-fail-load", () => {
         mainWindow.webContents.send("hide-loader");
+        if (view && mainWindow) {
+            mainWindow.removeBrowserView(view);
+            view.webContents.destroy(); // Optional: forcefully destroy
+        }
+        examStarted = false;
+        mainWindow.webContents.send("show-error", "Failed to connect. Please check your internet connection.");
     });
 
     app.on("web-contents-created", (e, contents) => {
@@ -227,6 +246,14 @@ ipcMain.on("start-exam", (event, code) => {
     });
 
     view.webContents.loadURL("https://is.gd/" + decoded);
+});
+
+ipcMain.on("go-home", () => {
+    if (view && mainWindow) {
+        mainWindow.removeBrowserView(view);
+        view.webContents.destroy(); // Free up memory
+    }
+    examStarted = false;
 });
 
 ipcMain.on("hide-view", () => {

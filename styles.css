@@ -98,8 +98,8 @@ body {
 /* Inputs and Buttons */
 .input-group { text-align: left; margin-bottom: 24px; margin-top: 20px; }
 .input-group label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; }
-input { width: 100%; padding: 14px 16px; font-size: 16px; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--surface-border); border-radius: 10px; color: white; box-sizing: border-box; outline: none; text-align: center; letter-spacing: 2px; font-weight: 600; transition: all 0.2s ease; }
-input:focus { border-color: var(--primary); background: rgba(0, 0, 0, 0.4); box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15); }
+input { font-family: 'Consolas', 'Courier New', 'Roboto Mono', monospace; width: 100%; padding: 14px 16px; font-size: 16px; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--surface-border); border-radius: 10px; color: white; box-sizing: border-box; outline: none; text-align: center; letter-spacing: 2px; font-weight: 600; transition: all 0.2s ease; }
+input:focus { border-color: var(--primary); background: rgba(0, 0, 0, 0.4); box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15); } 
 
 button.start { width: 100%; padding: 14px; font-size: 16px; font-weight: 700; background: linear-gradient(135deg, var(--primary), var(--primary-hover)); color: white; border: none; border-radius: 10px; cursor: pointer; transition: all 0.3s ease; }
 button.start:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4); }

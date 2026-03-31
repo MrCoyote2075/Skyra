@@ -1,12 +1,12 @@
 {
     "name": "skyra-exam-launcher",
-    "version": "1.0.0",
-    "description": "Secure Exam Browser",
+    "version": "2.0.0",
+    "description": "Secure Exam Launcher",
     "main": "main.js",
-    "author": "MrCoyote2075",
+    "author": "Dhanush N",
     "scripts": {
         "start": "electron .",
-        "dist": "electron-builder",
+        "build": "electron-builder",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "build": {

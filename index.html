@@ -10,19 +10,22 @@
 
 <body>
 
-  <!-- App Header (Hidden initially) -->
+  <!-- App Header -->
   <div class="header" id="app-header" style="display: none;">
     <div class="left">
       <img src="assets/logo1.png" class="logo" alt="Logo" onerror="this.style.display='none'" />
       <div class="title">Skyra</div>
       <div class="badge">SECURE MODE</div>
-      <!-- 🟢 NEW: Network Indicator -->
       <div class="badge" id="network-status"
         style="margin-left: 10px; transition: all 0.3s ease; background: rgba(59, 130, 246, 0.15); color: #3b82f6;">
         Checking...</div>
     </div>
     <div class="right">
-      <button class="btn-header refresh" onclick="refreshExam()">Refresh</button>
+      <button class="btn-header" id="btn-home"
+        style="display: none; background-color: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);"
+        onclick="goHome()">Home</button>
+      <button class="btn-header refresh" id="btn-refresh" style="display: none;"
+        onclick="refreshExam()">Refresh</button>
       <button class="btn-header exit" onclick="requestExit()">Exit</button>
     </div>
   </div>
@@ -55,12 +58,12 @@
       </div>
       <h2 style="margin-top: 0;">Exam Instructions</h2>
       <ul class="rules-list">
-        <li><strong style="color: var(--primary);">Stay Focused:</strong> Do not switch tabs, minimize the app, or open
+        <li><strong style="color: var(--primary);">Stay Focused:</strong> Do not switch tabs or Desktops, minimize the app, or open
           other applications.</li>
-        <li><strong style="color: var(--primary);">Violated Actions:</strong> Copying, pasting, screenshot and keyboard
-          shortcuts
+        <li><strong style="color: var(--primary);">Violated Actions:</strong> Keyboard
+          shortcuts such as (eg. alt + TAB, alt + F4, win + tab)
           are Violated. Right-click is not allowed.</li>
-        <li><strong style="color: var(--primary);">Strict Monitoring:</strong> Losing focus for more than <strong>3
+        <li><strong style="color: var(--primary);">Strict Monitoring:</strong> switching 3 times or Losing focus for more than <strong>5
             seconds</strong> will result in immediate exam termination.</li>
         <li><strong style="color: var(--primary);">Hardware Violations:</strong> Dual monitors and screen sharing
           software are
@@ -75,76 +78,77 @@
       <p style="color: var(--text-muted); font-size: 14px;">Enter Skyra access code</p>
       <div class="input-group">
         <label>Access Code</label>
-        <input type="text" id="code" placeholder="e.g. DP-XXXXXX" autocomplete="off" />
+        <input type="text" id="code" placeholder="eg. DP-XXXXXX" autocomplete="off" />
       </div>
       <button class="start" onclick="startExam()">Launch Exam</button>
-      <!-- 🟢 NEW: Home Screen Exit Button -->
-      <button class="btn-cancel" style="width: 100%; margin-top: 15px; padding: 14px; font-size: 16px;"
-        onclick="requestExit()">Exit Application</button>
     </div>
-  </div>
 
-  <!-- BLUR WARNING OVERLAY -->
-  <div id="warning-overlay" class="overlay">
-    <div class="warning-text">⚠️ RETURN TO EXAM ⚠️</div>
-    <p style="font-size: 24px;">Violation detected! App closing in...</p>
-    <div class="countdown" id="countdown-text">3</div>
-  </div>
-
-  <!-- POST-WARNING OVERLAY -->
-  <div id="post-warning-overlay" class="overlay">
-    <div class="modal-box" style="border-color: #f59e0b;">
-      <h3 style="color: #f59e0b; font-size: 24px; margin-top:0;">⚠️ Warning</h3>
-      <p style="font-size: 16px; line-height: 1.5;">You were switching tabs or lost focus on the exam window. This
-        action has
-        been flagged.</p>
-      <p style="font-size: 14px; color: var(--text-muted);">Please refrain from navigating away from the exam
-        environment.</p>
-      <button class="btn-cancel" style="margin-top: 15px; width: 100%; background: #f59e0b; color: #000;"
-        onclick="dismissPostWarning()">I Understand, Continue Exam</button>
+    <!-- BLUR WARNING OVERLAY -->
+    <div id="warning-overlay" class="overlay">
+      <div class="warning-text">⚠️ RETURN TO EXAM ⚠️</div>
+      <!-- NEW count display text -->
+      <p style="font-size: 24px; color: #facc15; font-weight: bold; margin: 0;" id="warning-count-text">Warning 1/3</p>
+      <p style="font-size: 24px;">Violation detected! App closing in...</p>
+      <div class="countdown" id="countdown-text">5</div>
     </div>
-  </div>
 
-  <!-- TERMINATED OVERLAY -->
-  <div id="terminated-overlay" class="overlay" style="background: rgba(15, 23, 42, 0.98);">
-    <div class="modal-box" style="border-color: #ef4444; max-width: 500px; background: #0f0505;">
-      <h3 style="color: #ef4444; font-size: 32px; margin-top:0;">🛑 Exam Terminated</h3>
-      <p style="font-size: 18px; line-height: 1.5;">You were left the secure environment for more than 3
-        seconds.</p>
-      <p style="font-size: 16px; color: var(--text-muted); margin-top: 10px;">Your session has been Terminated.</p>
-      <button class="btn-confirm" style="margin-top: 25px; width: 100%; font-size: 18px; padding: 15px;"
-        onclick="forceQuitApp()">Close</button>
-    </div>
-  </div>
-
-  <!-- EXIT CONFIRMATION MODAL -->
-  <div id="exit-overlay" class="overlay">
-    <div class="modal-box">
-      <h3 style="font-size: 24px; margin-top:0;">Exit Exam?</h3>
-      <p>Are you sure you want to exit? Your progress may be lost.</p>
-      <div class="btn-group">
-        <button class="btn-cancel" onclick="cancelExit()">Cancel</button>
-        <button class="btn-confirm" onclick="confirmExit()">Yes, Exit</button>
+    <!-- POST-WARNING OVERLAY -->
+    <div id="post-warning-overlay" class="overlay">
+      <div class="modal-box" style="border-color: #f59e0b;">
+        <h3 style="color: #f59e0b; font-size: 24px; margin-top:0;">⚠️ Warning</h3>
+        <p style="font-size: 16px; line-height: 1.5;">You switched tabs or lost focus on the exam window. This action
+          has
+          been flagged.</p>
+        <p style="font-size: 16px; font-weight: bold; color: #facc15;" id="post-warning-count">You have switched tabs 1
+          out of 3 times.</p>
+        <p style="font-size: 14px; color: var(--text-muted);">Please refrain from navigating away from the exam
+          environment.</p>
+        <button class="btn-cancel" style="margin-top: 15px; width: 100%; background: #f59e0b; color: #000;"
+          onclick="dismissPostWarning()">Continue Exam</button>
       </div>
     </div>
-  </div>
 
-  <!-- 🟢 NEW: LOADING OVERLAY -->
-  <div id="loading-overlay" class="overlay" style="z-index: 99999;">
-    <div class="loader"></div>
-    <p style="margin-top: 20px; font-size: 18px; color: var(--primary); font-weight: 600;">Loading Environment...</p>
-  </div>
-
-  <!-- ERROR MODAL -->
-  <div id="error-overlay" class="overlay">
-    <div class="modal-box" style="border-color: var(--danger);">
-      <h3 style="color: #ef4444; margin-top:0;">Error</h3>
-      <p id="error-message">Something went wrong.</p>
-      <button class="btn-cancel" style="margin-top: 15px;" onclick="hideAllOverlays()">Dismiss</button>
+    <!-- TERMINATED OVERLAY -->
+    <div id="terminated-overlay" class="overlay" style="background: rgba(15, 23, 42, 0.98);">
+      <div class="modal-box" style="border-color: #ef4444; max-width: 500px; background: #0f0505;">
+        <h3 style="color: #ef4444; font-size: 32px; margin-top:0;">🛑 Exam Terminated</h3>
+        <p id="terminate-reason" style="font-size: 18px; line-height: 1.5;">You left the secure environment for more
+          than 5
+          seconds.</p>
+        <p style="font-size: 16px; color: var(--text-muted); margin-top: 10px;">Your session has been Terminated.</p>
+        <button class="btn-confirm" style="margin-top: 25px; width: 100%; font-size: 18px; padding: 15px;"
+          onclick="forceQuitApp()">Close</button>
+      </div>
     </div>
-  </div>
 
-  <script src="renderer.js"></script>
+    <!-- EXIT CONFIRMATION MODAL -->
+    <div id="exit-overlay" class="overlay">
+      <div class="modal-box">
+        <h3 style="font-size: 24px; margin-top:0;">Exit Exam?</h3>
+        <p>Are you sure you want to exit? Your progress may be lost.</p>
+        <div class="btn-group">
+          <button class="btn-cancel" onclick="cancelExit()">Cancel</button>
+          <button class="btn-confirm" onclick="confirmExit()">Yes, Exit</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOADING OVERLAY -->
+    <div id="loading-overlay" class="overlay" style="z-index: 99999;">
+      <div class="loader"></div>
+      <p style="margin-top: 20px; font-size: 18px; color: var(--primary); font-weight: 600;">Loading Environment...</p>
+    </div>
+
+    <!-- ERROR MODAL -->
+    <div id="error-overlay" class="overlay">
+      <div class="modal-box" style="border-color: var(--danger);">
+        <h3 style="color: #ef4444; margin-top:0;">Error</h3>
+        <p id="error-message">Something went wrong.</p>
+        <button class="btn-cancel" style="margin-top: 15px;" onclick="hideAllOverlays()">Dismiss</button>
+      </div>
+    </div>
+
+    <script src="renderer.js"></script>
 </body>
 
 </html>

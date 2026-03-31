@@ -40,13 +40,15 @@ function checkNetwork() {
 setTimeout(checkNetwork, 1000);
 setInterval(checkNetwork, 5000);
 
-// 🟢 Splash Screen & Rules Flow
 window.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => {
         document.getElementById("splash-screen").style.display = "none";
         document.getElementById("rules-screen").style.display = "flex";
+        // 🟢 Show the top bar when the splash screen ends!
+        document.getElementById("app-header").style.display = "flex"; 
     }, 3000);
 });
+
 
 // Called when they click "I Accept All Conditions"
 function acceptRules() {
@@ -55,12 +57,19 @@ function acceptRules() {
 }
 
 function startExam() {
+    // 🟢 NEW: Prevent loading if there is no internet
+    const networkText = document.getElementById("network-status").innerText;
+    if (networkText.includes("Offline") || networkText.includes("Checking")) {
+        showError("No internet connection! Please check your network and try again.");
+        return;
+    }
+
     const code = document.getElementById("code").value;
     if (!code) {
         showError("Please enter a valid access code.");
         return;
     }
-    document.getElementById("loading-overlay").style.display = "flex"; // Show loader immediately
+    document.getElementById("loading-overlay").style.display = "flex"; 
     window.electronAPI.startExam(code);
 }
 
@@ -114,19 +123,23 @@ window.electronAPI.onHideLoader(() => {
 
 window.electronAPI.onExamStarted(() => {
     document.getElementById("login-container").style.display = "none";
-    document.getElementById("app-header").style.display = "flex";
+    document.getElementById("btn-home").style.display = "inline-block";
+    document.getElementById("btn-refresh").style.display = "inline-block";
 });
 
 window.electronAPI.onShowError((event, msg) => {
     showError(msg);
 });
 
-window.electronAPI.onShowWarning(() => {
+window.electronAPI.onShowWarning((event, count) => {
     if (countdownInterval) clearInterval(countdownInterval);
     hideAllOverlays();
     document.getElementById("warning-overlay").style.display = "flex";
 
-    let time = 3; // 🟢 Reduced to 3 Seconds
+    const warningCountEl = document.getElementById("warning-count-text");
+    if (warningCountEl) warningCountEl.innerText = `Warning ${count}/3`;
+
+    let time = 5;
     document.getElementById("countdown-text").innerText = time;
 
     countdownInterval = setInterval(() => {
@@ -137,10 +150,13 @@ window.electronAPI.onShowWarning(() => {
     }, 1000);
 });
 
-window.electronAPI.onShowPostWarning(() => {
+window.electronAPI.onShowPostWarning((event, count) => {
     if (countdownInterval) clearInterval(countdownInterval);
     hideAllOverlays();
     document.getElementById("post-warning-overlay").style.display = "flex";
+
+    const postCountEl = document.getElementById("post-warning-count");
+    if (postCountEl) postCountEl.innerText = `You have switched tabs ${count} out of 3 times.`;
 });
 
 function dismissPostWarning() {
@@ -153,12 +169,25 @@ window.electronAPI.onHideWarning(() => {
     hideAllOverlays();
 });
 
-window.electronAPI.onShowTerminated(() => {
+//  Capture the reason parameter
+window.electronAPI.onShowTerminated((event, reason) => {
     if (countdownInterval) clearInterval(countdownInterval);
     hideAllOverlays();
 
     document.getElementById("login-container").style.display = "none";
     document.getElementById("app-header").style.display = "none";
 
+    //  Display the reason for termination
+    const terminateReasonEl = document.getElementById("terminate-reason");
+    if (terminateReasonEl && reason) terminateReasonEl.innerText = reason;
+
     document.getElementById("terminated-overlay").style.display = "flex";
 });
+
+// Home Button Functionality
+function goHome() {
+    window.electronAPI.goHome(); // Calls our new safe memory-cleanup function
+    document.getElementById("login-container").style.display = "block";
+    document.getElementById("btn-home").style.display = "none";
+    document.getElementById("btn-refresh").style.display = "none";
+}

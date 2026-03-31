@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     hideView: () => ipcRenderer.send("hide-view"),
     showView: () => ipcRenderer.send("show-view"),
     resumeExam: () => ipcRenderer.send("resume-exam"),
+    goHome: () => ipcRenderer.send("go-home"),
 
     forceQuit: () => ipcRenderer.send("force-quit"),
 
@@ -20,7 +21,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
     onShowTerminated: (callback) => ipcRenderer.on("show-terminated", callback),
 
-    // 🟢 Loader event bindings
     onShowLoader: (callback) => ipcRenderer.on("show-loader", callback),
     onHideLoader: (callback) => ipcRenderer.on("hide-loader", callback),
 });
