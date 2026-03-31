@@ -5,12 +5,13 @@ const {
     BrowserView,
     screen,
     clipboard,
-    session, // 🟢 NEW: Import session to manage cache/cookies
+    session,
 } = require("electron");
 const path = require("path");
 
 // Pretend to be a normal Chrome browser so Google OAuth doesn't block us
-app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+app.userAgentFallback =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 let mainWindow;
 let view;
@@ -26,7 +27,7 @@ const ALLOWED_DOMAINS = [
     "oauth",
     "github.com",
     "linkedin.com",
-    "facebook.com"
+    "facebook.com",
 ];
 
 function decode(encodedStr) {
@@ -50,8 +51,8 @@ function decode(encodedStr) {
 function preventShortcuts(event, input) {
     if (
         input.key === "F12" ||
-        input.key === "F11" || 
-        input.meta ||           
+        input.key === "F11" ||
+        input.meta ||
         (input.control &&
             ["w", "t", "c", "v"].includes(input.key.toLowerCase())) ||
         (input.alt && input.key === "Tab") ||
@@ -66,10 +67,10 @@ function createMainWindow() {
         fullscreen: true,
         kiosk: true,
         alwaysOnTop: true,
-        resizable: false,    
-        movable: false,      
-        minimizable: false,  
-        maximizable: false,  
+        resizable: false,
+        movable: false,
+        minimizable: false,
+        maximizable: false,
         webPreferences: {
             preload: path.join(__dirname, "preload.js"),
             contextIsolation: true,
@@ -91,7 +92,7 @@ function createMainWindow() {
 
     screen.on("display-added", () => {
         if (examStarted && !isExiting) {
-            console.log("❌ New monitor plugged in! Terminating.");
+            console.log("New monitor plugged in! Terminating.");
             terminateExam();
         }
     });
@@ -111,7 +112,7 @@ app.on("browser-window-blur", () => {
     const activeWindow = BrowserWindow.getFocusedWindow();
     if (activeWindow) return;
 
-    console.log("📵 App lost focus! 3-sec timer started.");
+    console.log("App lost focus! 3-sec timer started.");
     clipboard.clear();
 
     if (view && mainWindow) {
@@ -120,16 +121,16 @@ app.on("browser-window-blur", () => {
     mainWindow.webContents.send("show-warning");
 
     blurTimer = setTimeout(() => {
-        console.log("❌ 3 Seconds up. Terminating UI shown.");
+        console.log("3 Seconds up. Terminating UI shown.");
         isExiting = true;
         terminateExam();
-    }, 3000); 
+    }, 3000);
 });
 
 app.on("browser-window-focus", () => {
     if (!examStarted || isExiting || !blurTimer) return;
 
-    console.log("✅ App regained focus.");
+    console.log("App regained focus.");
     clearTimeout(blurTimer);
     blurTimer = null;
 
@@ -137,16 +138,14 @@ app.on("browser-window-focus", () => {
     mainWindow.setAlwaysOnTop(true, "screen-saver");
 });
 
-// 🟢 NEW: Wait for app to be ready, clear all data, THEN create window
+// Wait for app to be ready, clear all data, THEN create window
 app.whenReady().then(async () => {
     // This effectively forces an "Incognito Mode" fresh start
     await session.defaultSession.clearStorageData();
     createMainWindow();
 });
 
-// =========================
 // IPC HANDLERS
-// =========================
 ipcMain.on("start-exam", (event, code) => {
     if (screen.getAllDisplays().length > 1) {
         mainWindow.webContents.send(
@@ -166,7 +165,7 @@ ipcMain.on("start-exam", (event, code) => {
 
     examStarted = true;
     mainWindow.webContents.send("exam-started");
-    mainWindow.webContents.send("show-loader"); 
+    mainWindow.webContents.send("show-loader");
 
     view = new BrowserView({
         webPreferences: { contextIsolation: true, nodeIntegration: false },
@@ -208,11 +207,11 @@ ipcMain.on("start-exam", (event, code) => {
         };
     });
 
-    view.webContents.on('did-stop-loading', () => {
-        mainWindow.webContents.send('hide-loader');
+    view.webContents.on("did-stop-loading", () => {
+        mainWindow.webContents.send("hide-loader");
     });
-    view.webContents.on('did-fail-load', () => {
-        mainWindow.webContents.send('hide-loader');
+    view.webContents.on("did-fail-load", () => {
+        mainWindow.webContents.send("hide-loader");
     });
 
     app.on("web-contents-created", (e, contents) => {
@@ -255,14 +254,14 @@ ipcMain.on("refresh-exam", () => {
     if (view) view.webContents.reload();
 });
 
-// 🟢 NEW: Clear data immediately before exiting
+// Clear data immediately before exiting
 ipcMain.on("exit-exam", async () => {
     isExiting = true;
     await session.defaultSession.clearStorageData();
     app.quit();
 });
 
-// 🟢 NEW: Clear data immediately before Force Quitting
+// Clear data immediately before Force Quitting
 ipcMain.on("force-quit", async () => {
     isExiting = true;
     await session.defaultSession.clearStorageData();
