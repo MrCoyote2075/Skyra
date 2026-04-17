@@ -50,7 +50,7 @@ function decode(encodedStr) {
 }
 
 function preventShortcuts(event, input) {
-    const isMac = process.platform === 'darwin';
+    const isMac = process.platform === "darwin";
     const modifier = isMac ? input.meta : input.control;
 
     if (
@@ -95,7 +95,7 @@ function createMainWindow() {
     screen.on("display-added", () => {
         if (examStarted && !isExiting) {
             console.log("New monitor plugged in! Terminating.");
-            terminateExam("Multiple monitors detected during the exam."); 
+            terminateExam("Multiple monitors detected during the exam.");
         }
     });
 }
@@ -124,7 +124,7 @@ app.on("browser-window-blur", () => {
     }
 
     console.log("App lost focus! 5-sec timer started.");
-    
+
     if (view && mainWindow) {
         mainWindow.removeBrowserView(view);
     }
@@ -157,7 +157,7 @@ app.whenReady().then(async () => {
 
 // IPC HANDLERS
 ipcMain.on("start-exam", (event, code) => {
-    tabSwitchCount = 0; 
+    tabSwitchCount = 0;
 
     if (screen.getAllDisplays().length > 1) {
         mainWindow.webContents.send(
@@ -223,15 +223,60 @@ ipcMain.on("start-exam", (event, code) => {
         mainWindow.webContents.send("hide-loader");
     });
 
-     view.webContents.on("did-fail-load", () => {
+    // view.webContents.on("did-fail-load", () => {
+    //     mainWindow.webContents.send("hide-loader");
+    //     if (view && mainWindow) {
+    //         mainWindow.removeBrowserView(view);
+    //         view.webContents.destroy();
+    //     }
+    //     examStarted = false;
+    //     mainWindow.webContents.send(
+    //         "show-error",
+    //         "Failed to connect. Please check your internet connection.",
+    //     );
+    // });
+
+    view.webContents.on("did-fail-load", (event, errorCode, errorDescription, validatedURL) => {
+        // ALWAYS hide the loader if a load fails or is aborted
         mainWindow.webContents.send("hide-loader");
+        
+        if (errorCode === -3) {
+            // Ignore -3 (ERR_ABORTED) so Google Sign-in doesn't destroy the view, 
+            // but we successfully hid the loader above so it doesn't get stuck!
+            return;
+        }
+
         if (view && mainWindow) {
             mainWindow.removeBrowserView(view);
-            view.webContents.destroy(); // Optional: forcefully destroy
+            if (view.webContents && !view.webContents.isDestroyed()) {
+                view.webContents.destroy(); 
+            }
+            view = null;
         }
         examStarted = false;
         mainWindow.webContents.send("show-error", "Failed to connect. Please check your internet connection.");
     });
+
+    view.webContents.on(
+        "did-fail-load",
+        (event, errorCode, errorDescription, validatedURL) => {
+            if (errorCode === -3) {
+                return;
+            }
+
+            mainWindow.webContents.send("hide-loader");
+            if (view && mainWindow) {
+                mainWindow.removeBrowserView(view);
+                view.webContents.destroy();
+                view = null;
+            }
+            examStarted = false;
+            mainWindow.webContents.send(
+                "show-error",
+                "Failed to connect. Please check your internet connection.",
+            );
+        },
+    );
 
     app.on("web-contents-created", (e, contents) => {
         contents.on("devtools-opened", () => contents.closeDevTools());
@@ -251,7 +296,11 @@ ipcMain.on("start-exam", (event, code) => {
 ipcMain.on("go-home", () => {
     if (view && mainWindow) {
         mainWindow.removeBrowserView(view);
-        view.webContents.destroy(); // Free up memory
+        // Extremely safe check to prevent crashes
+        if (view.webContents && !view.webContents.isDestroyed()) {
+            view.webContents.destroy();
+        }
+        view = null; 
     }
     examStarted = false;
 });
@@ -277,8 +326,25 @@ ipcMain.on("resume-exam", () => {
     }
 });
 
+// ipcMain.on("refresh-exam", () => {
+//     // Add safety check for webContents to prevent the app from crashing
+//     if (view && !view.webContents.isDestroyed()) {
+//         view.webContents.reload();
+//     } else {
+//         // If the view was destroyed, we should hide the loader and reset state
+//         mainWindow.webContents.send("hide-loader");
+//         mainWindow.webContents.send("show-error", "Exam view disconnected. Please go Home and try again.");
+//     }
+// });
+
 ipcMain.on("refresh-exam", () => {
-    if (view) view.webContents.reload();
+    // Extremely safe check to prevent crashes
+    if (view && view.webContents && !view.webContents.isDestroyed()) {
+        view.webContents.reload();
+    } else {
+        mainWindow.webContents.send("hide-loader");
+        mainWindow.webContents.send("show-error", "Exam view disconnected. Please go Home and try again.");
+    }
 });
 
 // Clear data immediately before exiting

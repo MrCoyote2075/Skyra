@@ -187,6 +187,7 @@ window.electronAPI.onShowTerminated((event, reason) => {
 
 // Home Button Functionality
 function goHome() {
+    hideAllOverlays();
     window.electronAPI.goHome(); 
     document.getElementById("login-container").style.display = "block";
     document.getElementById("btn-home").style.display = "none";
