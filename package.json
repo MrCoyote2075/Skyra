@@ -3,14 +3,14 @@
     "version": "3.0.0",
     "description": "Secure Exam Launcher",
     "main": "main.js",
-    "author": "Dhanush N",
+    "author": "Dhanu Corporation",
     "scripts": {
         "start": "electron .",
         "build": "electron-builder",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "build": {
-        "appId": "com.dhanush.skyraexamlauncher",
+        "appId": "com.dhanucorporation.skyraexamlauncher",
         "productName": "Skyra Exam Launcher",
         "win": {
             "target": "nsis",
