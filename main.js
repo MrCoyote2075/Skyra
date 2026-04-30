@@ -4,359 +4,412 @@ const {
     ipcMain,
     BrowserView,
     screen,
-    clipboard,
-    session,
+    session
 } = require("electron");
 const path = require("path");
 
-// Pretend to be a normal Chrome browser so Google OAuth doesn't block us
-app.userAgentFallback =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+// ==========================================
+// GLOBAL SWITCHES
+// ==========================================
+// THIS BLOCKS THE WINDOWS PASSKEY POPUP AND FORCES "TAP YES" PHONE VERIFICATION
+app.commandLine.appendSwitch(
+    "disable-features",
+    "WebAuthentication,WebAuthenticationProxy"
+);
 
-let mainWindow;
-let view;
-let examStarted = false;
-let isExiting = false;
-let blurTimer = null;
-let tabSwitchCount = 0;
+// ==========================================
+// CONFIGURATION
+// ==========================================
+const CONFIG = {
+    USER_AGENT: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    MAX_TAB_SWITCHES: 3,
+    BLUR_GRACE_PERIOD_MS: 5000,
+    ALLOWED_DOMAINS: [
+        "hackerearth.com",
+        "hackerrank.com",
+        "is.gd",
+        "accounts.google.com",
+        "oauth",
+        "github.com",
+        "linkedin.com",
+        "facebook.com",
+    ]
+};
 
-const ALLOWED_DOMAINS = [
-    "hackerearth.com",
-    "hackerrank.com",
-    "is.gd",
-    "accounts.google.com",
-    "oauth",
-    "github.com",
-    "linkedin.com",
-    "facebook.com",
-];
-
-function decode(encodedStr) {
-    if (!encodedStr.startsWith("DP-")) throw new Error("Invalid format");
-    const encoded = encodedStr.slice(3);
-    const charset =
-        "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-    const shifts = [-1, 2, -4, 2, -2, 0, -2, 2, -7, 4];
-    let original = "";
-    for (let i = 0; i < encoded.length; i++) {
-        let index = charset.indexOf(encoded[i]);
-        if (index === -1) throw new Error("Invalid character");
-        let originalIndex =
-            (index - shifts[i % shifts.length]) % charset.length;
-        if (originalIndex < 0) originalIndex += charset.length;
-        original += charset[originalIndex];
-    }
-    return original;
-}
-
-function preventShortcuts(event, input) {
-    const isMac = process.platform === "darwin";
-    const modifier = isMac ? input.meta : input.control;
-
-    if (
-        input.key === "F12" ||
-        input.key === "F11" ||
-        (modifier && ["w", "t"].includes(input.key.toLowerCase())) ||
-        (input.alt && input.key === "Tab") ||
-        (input.alt && input.key === "F4")
-    ) {
-        event.preventDefault();
-    }
-}
-
-function createMainWindow() {
-    mainWindow = new BrowserWindow({
-        fullscreen: true,
-        kiosk: true,
-        alwaysOnTop: true,
-        resizable: false,
-        movable: false,
-        minimizable: false,
-        maximizable: false,
-        webPreferences: {
-            preload: path.join(__dirname, "preload.js"),
-            contextIsolation: true,
-            nodeIntegration: false,
-        },
-    });
-
-    mainWindow.loadFile("index.html");
-    mainWindow.setContentProtection(true);
-
-    mainWindow.on("close", (e) => {
-        if (!isExiting) e.preventDefault();
-    });
-
-    mainWindow.webContents.on("devtools-opened", () =>
-        mainWindow.webContents.closeDevTools(),
-    );
-    mainWindow.webContents.on("before-input-event", preventShortcuts);
-
-    screen.on("display-added", () => {
-        if (examStarted && !isExiting) {
-            console.log("New monitor plugged in! Terminating.");
-            terminateExam("Multiple monitors detected during the exam.");
-        }
-    });
-}
-
-function terminateExam(reason) {
-    examStarted = false;
-    if (view && mainWindow) {
-        mainWindow.removeBrowserView(view);
-    }
-    mainWindow.webContents.send("show-terminated", reason);
-}
-
-app.on("browser-window-blur", () => {
-    if (!examStarted || isExiting) return;
-
-    const activeWindow = BrowserWindow.getFocusedWindow();
-    if (activeWindow) return;
-
-    tabSwitchCount++;
-
-    if (tabSwitchCount > 3) {
-        console.log("Tab switch limit exceeded! Terminating.");
-        isExiting = true;
-        terminateExam("You exceeded the maximum allowed tab switches.");
-        return;
-    }
-
-    console.log("App lost focus! 5-sec timer started.");
-
-    if (view && mainWindow) {
-        mainWindow.removeBrowserView(view);
-    }
-    mainWindow.webContents.send("show-warning", tabSwitchCount);
-
-    blurTimer = setTimeout(() => {
-        console.log("5 Seconds up. Terminating UI shown.");
-        isExiting = true;
-        terminateExam("You left the application for more than 5 seconds.");
-    }, 5000);
-});
-
-app.on("browser-window-focus", () => {
-    if (!examStarted || isExiting || !blurTimer) return;
-
-    console.log("App regained focus.");
-    clearTimeout(blurTimer);
-    blurTimer = null;
-
-    mainWindow.webContents.send("show-post-warning", tabSwitchCount);
-    mainWindow.setAlwaysOnTop(true, "screen-saver");
-});
-
-// Wait for app to be ready, clear all data, THEN create window
-app.whenReady().then(async () => {
-    // This effectively forces an "Incognito Mode" fresh start
-    await session.defaultSession.clearStorageData();
-    createMainWindow();
-});
-
-// IPC HANDLERS
-ipcMain.on("start-exam", (event, code) => {
-    tabSwitchCount = 0;
-
-    if (screen.getAllDisplays().length > 1) {
-        mainWindow.webContents.send(
-            "show-error",
-            "Multiple monitors detected! Disconnect external displays.",
-        );
-        return;
-    }
-
-    let decoded;
-    try {
-        decoded = decode(code);
-    } catch (error) {
-        mainWindow.webContents.send("show-error", "Invalid Access Code.");
-        return;
-    }
-
-    examStarted = true;
-    mainWindow.webContents.send("exam-started");
-    mainWindow.webContents.send("show-loader");
-
-    view = new BrowserView({
-        webPreferences: { contextIsolation: true, nodeIntegration: false },
-    });
-
-    mainWindow.setBrowserView(view);
-    const [width, height] = mainWindow.getSize();
-    view.setBounds({ x: 0, y: 70, width, height: height - 70 });
-    view.setAutoResize({ width: true, height: true });
-
-    view.webContents.on("devtools-opened", () =>
-        view.webContents.closeDevTools(),
-    );
-    view.webContents.on("context-menu", (e) => e.preventDefault());
-    view.webContents.on("before-input-event", preventShortcuts);
-
-    view.webContents.on("will-navigate", (e, navUrl) => {
-        const isAllowed = ALLOWED_DOMAINS.some((domain) =>
-            navUrl.includes(domain),
-        );
-        if (!isAllowed) e.preventDefault();
-    });
-
-    view.webContents.setWindowOpenHandler(({ url }) => {
-        return {
-            action: "allow",
-            overrideBrowserWindowOptions: {
-                width: 600,
-                height: 700,
-                parent: mainWindow,
-                modal: true,
-                alwaysOnTop: true,
-                autoHideMenuBar: true,
-                webPreferences: {
-                    contextIsolation: true,
-                    nodeIntegration: false,
-                },
-            },
-        };
-    });
-
-    view.webContents.on("did-stop-loading", () => {
-        mainWindow.webContents.send("hide-loader");
-    });
-
-    // view.webContents.on("did-fail-load", () => {
-    //     mainWindow.webContents.send("hide-loader");
-    //     if (view && mainWindow) {
-    //         mainWindow.removeBrowserView(view);
-    //         view.webContents.destroy();
-    //     }
-    //     examStarted = false;
-    //     mainWindow.webContents.send(
-    //         "show-error",
-    //         "Failed to connect. Please check your internet connection.",
-    //     );
-    // });
-
-    view.webContents.on("did-fail-load", (event, errorCode, errorDescription, validatedURL) => {
-        // ALWAYS hide the loader if a load fails or is aborted
-        mainWindow.webContents.send("hide-loader");
+// ==========================================
+// EXAM CONTROLLER CLASS
+// ==========================================
+class ExamController {
+    constructor() {
+        this.mainWindow = null;
+        this.view = null;
         
-        if (errorCode === -3) {
-            // Ignore -3 (ERR_ABORTED) so Google Sign-in doesn't destroy the view, 
-            // but we successfully hid the loader above so it doesn't get stuck!
-            return;
-        }
+        this.examStarted = false;
+        this.isExiting = false;
+        
+        this.blurTimer = null;
+        this.tabSwitchCount = 0;
 
-        if (view && mainWindow) {
-            mainWindow.removeBrowserView(view);
-            if (view.webContents && !view.webContents.isDestroyed()) {
-                view.webContents.destroy(); 
+        this.authView = null;
+    }
+
+    initialize() {
+        app.userAgentFallback = CONFIG.USER_AGENT;
+
+        app.disableHardwareAcceleration();
+        app.whenReady().then(async () => {
+            await session.defaultSession.clearStorageData();
+
+            this.createMainWindow();
+            this.registerWindowEvents();
+            this.registerIpcHandlers();
+        });
+
+        app.on("window-all-closed", () => {
+            if (process.platform !== "darwin") {
+                app.quit();
             }
-            view = null;
-        }
-        examStarted = false;
-        mainWindow.webContents.send("show-error", "Failed to connect. Please check your internet connection.");
-    });
+        });
+    }
 
-    view.webContents.on(
-        "did-fail-load",
-        (event, errorCode, errorDescription, validatedURL) => {
-            if (errorCode === -3) {
+    createMainWindow() {
+        this.mainWindow = new BrowserWindow({
+            fullscreen: true,
+            kiosk: true,
+            alwaysOnTop: true,
+            resizable: false,
+            movable: false,
+            minimizable: false,
+            maximizable: false,
+            webPreferences: {
+                preload: path.join(__dirname, "preload.js"),
+                contextIsolation: true,
+                nodeIntegration: false,
+            },
+        });
+
+        this.mainWindow.loadFile("index.html");
+        this.mainWindow.setContentProtection(true);
+
+        this.mainWindow.on("close", (e) => {
+            if (!this.isExiting) e.preventDefault();
+        });
+
+        this.enforceSecurity(this.mainWindow.webContents);
+    }
+
+    enforceSecurity(webContents) {
+        webContents.on("devtools-opened", () => webContents.closeDevTools());
+        webContents.on("context-menu", (e) => e.preventDefault());
+        
+        webContents.on("before-input-event", (event, input) => {
+            const isMac = process.platform === "darwin";
+            const modifier = isMac ? input.meta : input.control;
+
+            if (
+                input.key === "F12" ||
+                input.key === "F11" ||
+                (modifier && ["w", "t"].includes(input.key.toLowerCase())) ||
+                (input.alt && input.key === "Tab") ||
+                (input.alt && input.key === "F4")
+            ) {
+                event.preventDefault();
+            }
+        });
+    }
+
+    monitorDisplays() {
+        if (screen.getAllDisplays().length > 1) return false;
+        return true;
+    }
+
+    registerWindowEvents() {
+        screen.on("display-added", () => {
+            if (this.examStarted && !this.isExiting) {
+                this.terminateExam("Multiple monitors detected during the exam.");
+            }
+        });
+
+        app.on("browser-window-blur", () => {
+            if (!this.examStarted || this.isExiting) return;
+
+            const activeWindow = BrowserWindow.getFocusedWindow();
+            if (activeWindow) return;
+
+            this.tabSwitchCount++;
+
+            if (this.tabSwitchCount > CONFIG.MAX_TAB_SWITCHES) {
+                this.isExiting = true;
+                this.terminateExam("You exceeded the maximum allowed tab switches.");
                 return;
             }
 
-            mainWindow.webContents.send("hide-loader");
-            if (view && mainWindow) {
-                mainWindow.removeBrowserView(view);
-                view.webContents.destroy();
-                view = null;
-            }
-            examStarted = false;
-            mainWindow.webContents.send(
-                "show-error",
-                "Failed to connect. Please check your internet connection.",
-            );
-        },
-    );
+            this.hideExamView();
+            this.mainWindow.webContents.send("show-warning", this.tabSwitchCount);
 
-    app.on("web-contents-created", (e, contents) => {
-        contents.on("devtools-opened", () => contents.closeDevTools());
-        contents.on("context-menu", (event) => event.preventDefault());
-        contents.on("before-input-event", preventShortcuts);
-        contents.on("will-navigate", (event, navUrl) => {
-            const isAllowed = ALLOWED_DOMAINS.some((domain) =>
-                navUrl.includes(domain),
-            );
-            if (!isAllowed) event.preventDefault();
+            this.blurTimer = setTimeout(() => {
+                this.isExiting = true;
+                this.terminateExam("You left the application for more than 5 seconds.");
+            }, CONFIG.BLUR_GRACE_PERIOD_MS);
         });
-    });
 
-    view.webContents.loadURL("https://is.gd/" + decoded);
-});
+        app.on("browser-window-focus", () => {
+            if (!this.examStarted || this.isExiting || !this.blurTimer) return;
+            clearTimeout(this.blurTimer);
+            this.blurTimer = null;
+            this.mainWindow.webContents.send("show-post-warning", this.tabSwitchCount);
+            this.mainWindow.setAlwaysOnTop(true, "screen-saver");
+        });
+    }
 
-ipcMain.on("go-home", () => {
-    if (view && mainWindow) {
-        mainWindow.removeBrowserView(view);
-        // Extremely safe check to prevent crashes
-        if (view.webContents && !view.webContents.isDestroyed()) {
-            view.webContents.destroy();
+    startExam(code) {
+        this.tabSwitchCount = 0;
+
+        if (!this.monitorDisplays()) {
+            this.mainWindow.webContents.send("show-error", "Multiple monitors detected! Disconnect external displays.");
+            return;
         }
-        view = null; 
+
+        let decodedUrl;
+        try {
+            decodedUrl = this.decodeAccessCode(code);
+        } catch (error) {
+            this.mainWindow.webContents.send("show-error", "Invalid Access Code.");
+            return;
+        }
+
+        this.examStarted = true;
+        this.mainWindow.webContents.send("exam-started");
+        this.mainWindow.webContents.send("show-loader");
+
+        this.view = new BrowserView({
+            webPreferences: { contextIsolation: true, nodeIntegration: false },
+        });
+
+        this.mainWindow.setBrowserView(this.view);
+        this.resizeView();
+
+        this.enforceSecurity(this.view.webContents);
+        this.setupViewNavigation();
+
+        this.view.webContents.loadURL("https://is.gd/" + decodedUrl);
     }
-    examStarted = false;
-});
 
-ipcMain.on("hide-view", () => {
-    if (view && mainWindow) mainWindow.removeBrowserView(view);
-});
+    setupViewNavigation() {
+        const webContents = this.view.webContents;
 
-ipcMain.on("show-view", () => {
-    if (view && mainWindow) {
-        mainWindow.setBrowserView(view);
-        const [width, height] = mainWindow.getSize();
-        view.setBounds({ x: 0, y: 70, width, height: height - 70 });
+        webContents.on("will-navigate", (e, navUrl) => {
+            const isAllowed = CONFIG.ALLOWED_DOMAINS.some((domain) => navUrl.includes(domain));
+            if (!isAllowed) e.preventDefault();
+        });
+
+        webContents.setWindowOpenHandler(({ url }) => {
+            return {
+                action: "allow",
+                overrideBrowserWindowOptions: {
+                    width: 600, height: 700,
+                    parent: this.mainWindow, modal: true,
+                    alwaysOnTop: true, autoHideMenuBar: true,
+                    webPreferences: { contextIsolation: true, nodeIntegration: false },
+                },
+            };
+        });
+
+        webContents.on("did-stop-loading", () => {
+            if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                this.mainWindow.webContents.send("hide-loader");
+            }
+        });
+
+        webContents.on("did-fail-load", (event, errorCode) => {
+            if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+            this.mainWindow.webContents.send("hide-loader");
+            if (errorCode === -3) return;
+
+            this.destroyExamView();
+            this.examStarted = false;
+            this.mainWindow.webContents.send("show-error", "Failed to connect. Please check your internet connection.");
+        });
     }
-});
 
-ipcMain.on("resume-exam", () => {
-    if (view && mainWindow) {
-        mainWindow.setBrowserView(view);
-        const [width, height] = mainWindow.getSize();
-        view.setBounds({ x: 0, y: 70, width, height: height - 70 });
-        mainWindow.setAlwaysOnTop(true, "screen-saver");
+    terminateExam(reason) {
+        this.examStarted = false;
+        this.destroyExamView();
+
+        if (this.authView && this.mainWindow) {
+            this.mainWindow.removeBrowserView(this.authView);
+            if (this.authView.webContents && !this.authView.webContents.isDestroyed()) {
+                this.authView.webContents.destroy();
+            }
+            this.authView = null;
+        }
+
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+            this.mainWindow.webContents.send("show-terminated", reason);
+        }
     }
-});
 
-// ipcMain.on("refresh-exam", () => {
-//     // Add safety check for webContents to prevent the app from crashing
-//     if (view && !view.webContents.isDestroyed()) {
-//         view.webContents.reload();
-//     } else {
-//         // If the view was destroyed, we should hide the loader and reset state
-//         mainWindow.webContents.send("hide-loader");
-//         mainWindow.webContents.send("show-error", "Exam view disconnected. Please go Home and try again.");
-//     }
-// });
-
-ipcMain.on("refresh-exam", () => {
-    // Extremely safe check to prevent crashes
-    if (view && view.webContents && !view.webContents.isDestroyed()) {
-        view.webContents.reload();
-    } else {
-        mainWindow.webContents.send("hide-loader");
-        mainWindow.webContents.send("show-error", "Exam view disconnected. Please go Home and try again.");
+    resizeView() {
+        if (!this.view || !this.mainWindow) return;
+        const [width, height] = this.mainWindow.getSize();
+        this.view.setBounds({ x: 0, y: 70, width, height: height - 70 });
+        this.view.setAutoResize({ width: true, height: true });
     }
-});
 
-// Clear data immediately before exiting
-ipcMain.on("exit-exam", async () => {
-    isExiting = true;
-    await session.defaultSession.clearStorageData();
-    app.quit();
-});
+    hideExamView() {
+        if (this.view && this.mainWindow) this.mainWindow.removeBrowserView(this.view);
+    }
 
-// Clear data immediately before Force Quitting
-ipcMain.on("force-quit", async () => {
-    isExiting = true;
-    await session.defaultSession.clearStorageData();
-    app.quit();
-});
+    showExamView() {
+        if (this.view && this.mainWindow) {
+            this.mainWindow.setBrowserView(this.view);
+            this.resizeView();
+        }
+    }
+
+    destroyExamView() {
+        if (this.view && this.mainWindow) {
+            this.mainWindow.removeBrowserView(this.view);
+            if (this.view.webContents && !this.view.webContents.isDestroyed()) this.view.webContents.destroy();
+            this.view = null;
+        }
+    }
+
+    decodeAccessCode(encodedStr) {
+        if (!encodedStr.startsWith("DP-")) throw new Error("Invalid format");
+        const encoded = encodedStr.slice(3);
+        const charset = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+        const shifts = [-1, 2, -4, 2, -2, 0, -2, 2, -7, 4];
+        let original = "";
+        for (let i = 0; i < encoded.length; i++) {
+            let index = charset.indexOf(encoded[i]);
+            if (index === -1) throw new Error("Invalid character");
+            let originalIndex = (index - shifts[i % shifts.length]) % charset.length;
+            if (originalIndex < 0) originalIndex += charset.length;
+            original += charset[originalIndex];
+        }
+        return original;
+    }
+
+    registerIpcHandlers() {
+        ipcMain.on("start-exam", (event, code) => {
+            this.startExam(code);
+
+            if (this.authView && this.mainWindow) {
+                this.mainWindow.removeBrowserView(this.authView);
+                if (this.authView.webContents && !this.authView.webContents.isDestroyed()) {
+                    this.authView.webContents.destroy();
+                }
+                this.authView = null;
+            }
+        });
+
+        ipcMain.on("go-home", () => { this.destroyExamView(); this.examStarted = false; });
+        ipcMain.on("hide-view", () => {
+            this.hideExamView();
+            if (this.authView && this.mainWindow) {
+                this.mainWindow.removeBrowserView(this.authView);
+            }
+        });
+
+        ipcMain.on("show-view", () => this.showExamView());
+        
+        ipcMain.on("resume-exam", () => {
+            this.showExamView();
+            if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                this.mainWindow.setAlwaysOnTop(true, "screen-saver");
+            }
+        });
+
+        ipcMain.on("refresh-exam", () => {
+            if (this.view && this.view.webContents && !this.view.webContents.isDestroyed()) {
+                this.view.webContents.reload();
+            } else {
+                if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                    this.mainWindow.webContents.send("hide-loader");
+                    this.mainWindow.webContents.send("show-error", "Exam view disconnected.");
+                }
+            }
+        });
+
+        // PURE WIPE ON EXIT
+        ipcMain.on("exit-exam", async () => {
+            this.isExiting = true;
+            await session.defaultSession.clearStorageData();
+            app.quit();
+        });
+
+        ipcMain.on("force-quit", async () => {
+            this.isExiting = true;
+            await session.defaultSession.clearStorageData();
+            app.quit();
+        });
+
+        ipcMain.on("open-google-login", () => {
+            if (this.view && this.mainWindow) {
+                this.mainWindow.removeBrowserView(this.view);
+            }
+            this.createGoogleLoginView();
+        });
+
+        ipcMain.handle("confirm-google-login", async () => {
+            const cookies = await session.defaultSession.cookies.get({
+                domain: "google.com",
+            });
+
+            const isLoggedIn = cookies.some((c) =>
+                ["SID", "HSID", "SSID", "APISID", "SAPISID", "SIDCC"].some((name) =>
+                    c.name.includes(name),
+                ),
+            );
+
+            if (isLoggedIn && this.authView && this.mainWindow) {
+                this.mainWindow.removeBrowserView(this.authView);
+                if (this.authView.webContents && !this.authView.webContents.isDestroyed()) {
+                    this.authView.webContents.destroy();
+                }
+                this.authView = null;
+            }
+
+            return isLoggedIn;
+        });
+    }
+
+    createGoogleLoginView() {
+        if (this.authView && this.authView.webContents && !this.authView.webContents.isDestroyed()) {
+            this.mainWindow.setBrowserView(this.authView);
+            return;
+        }
+
+        this.authView = new BrowserView({
+            webPreferences: { contextIsolation: true, nodeIntegration: false },
+        });
+
+        this.mainWindow.setBrowserView(this.authView);
+        const [width, height] = this.mainWindow.getSize();
+        this.authView.setBounds({ x: 0, y: 70, width, height: height - 70 });
+        this.authView.setAutoResize({ width: true, height: true });
+
+        this.authView.webContents.loadURL("https://accounts.google.com/");
+
+        this.authView.webContents.on("did-navigate", async () => {
+            const cookies = await session.defaultSession.cookies.get({ domain: "google.com" });
+            const isLoggedIn = cookies.some((c) =>
+                ["SID", "HSID", "SSID", "APISID", "SAPISID", "SIDCC"].some((name) => c.name.includes(name)),
+            );
+
+            if (isLoggedIn && this.mainWindow && !this.mainWindow.isDestroyed()) {
+                this.mainWindow.removeBrowserView(this.authView);
+                if (this.authView.webContents && !this.authView.webContents.isDestroyed()) {
+                    this.authView.webContents.destroy();
+                }
+                this.authView = null;
+
+                this.mainWindow.webContents.send("google-login-success");
+            }
+        });
+    }
+}
+
+const appController = new ExamController();
+appController.initialize();

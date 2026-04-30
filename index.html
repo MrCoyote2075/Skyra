@@ -74,6 +74,18 @@
       <button class="start" onclick="acceptRules()">I Accept All Conditions</button>
     </div>
 
+    <!-- GOOGLE LOGIN CARD -->
+    <div class="card" id="google-login-container" style="display: none;">
+      <h2>Sign in with Google</h2>
+      <p style="color: var(--text-muted); font-size: 14px;">
+        Please complete Google login before starting the exam.
+      </p>
+      <button class="start" onclick="startGoogleLogin()">Sign in with Google</button>
+      <button class="btn-confirm" style="margin-top: 12px; width: 100%;" onclick="confirmGoogleLogin()">
+        Continue
+      </button>
+    </div>
+
     <!-- LOGIN CARD -->
     <div class="card" id="login-container" style="display: none;">
       <h2>Join Contest</h2>

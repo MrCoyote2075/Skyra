@@ -50,11 +50,23 @@ window.addEventListener("DOMContentLoaded", () => {
     }, 4000);
 });
 
-
-// Called when they click "I Accept All Conditions"
 function acceptRules() {
     document.getElementById("rules-screen").style.display = "none";
-    document.getElementById("login-container").style.display = "block";
+    document.getElementById("google-login-container").style.display = "block";
+}
+
+function startGoogleLogin() {
+    window.electronAPI.openGoogleLogin();
+}
+
+async function confirmGoogleLogin() {
+    const ok = await window.electronAPI.confirmGoogleLogin();
+    if (ok) {
+        document.getElementById("google-login-container").style.display = "none";
+        document.getElementById("login-container").style.display = "block";
+    } else {
+        showError("Google login not detected yet. Please sign in and try again.");
+    }
 }
 
 function startExam() {
@@ -104,6 +116,7 @@ function refreshExam() {
 
 // Sends final kill signal to main process
 function forceQuitApp() {
+    console.log("Force quit clicked");
     window.electronAPI.forceQuit();
 }
 
@@ -112,6 +125,11 @@ function showError(msg) {
     document.getElementById("error-message").innerText = msg;
     document.getElementById("error-overlay").style.display = "flex";
 }
+
+window.electronAPI.onGoogleLoginSuccess(() => {
+    document.getElementById("google-login-container").style.display = "none";
+    document.getElementById("login-container").style.display = "block";
+});
 
 // Loaders triggered from main process navigation status
 window.electronAPI.onShowLoader(() => {

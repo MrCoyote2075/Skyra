@@ -23,4 +23,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
     onShowLoader: (callback) => ipcRenderer.on("show-loader", callback),
     onHideLoader: (callback) => ipcRenderer.on("hide-loader", callback),
+    
+    openGoogleLogin: () => ipcRenderer.send("open-google-login"),
+    confirmGoogleLogin: () => ipcRenderer.invoke("confirm-google-login"),
+    onGoogleLoginSuccess: (callback) => ipcRenderer.on("google-login-success", callback),
 });
