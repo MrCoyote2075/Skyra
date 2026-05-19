@@ -51,6 +51,8 @@ class ExamController {
         this.tabSwitchCount = 0;
 
         this.authView = null;
+        this.forceCloseTimer = null;
+        this.lastExamUrl = null;
     }
 
     initialize() {
@@ -76,7 +78,7 @@ class ExamController {
         this.mainWindow = new BrowserWindow({
             fullscreen: true,
             kiosk: true,
-            alwaysOnTop: true,
+            alwaysOnTop: false,
             resizable: false,
             movable: false,
             minimizable: false,
@@ -95,6 +97,21 @@ class ExamController {
             if (!this.isExiting) e.preventDefault();
         });
 
+        this.mainWindow.on("close", (e) => {
+            if (this.isExiting) return;
+
+            e.preventDefault();
+
+            this.mainWindow.webContents.send("show-error", "Closing...");
+
+            if (!this.forceCloseTimer) {
+                this.forceCloseTimer = setTimeout(() => {
+                this.isExiting = true;
+                app.exit(0);
+                }, 2000);
+            }
+        });
+
         this.enforceSecurity(this.mainWindow.webContents);
     }
 
@@ -110,7 +127,6 @@ class ExamController {
                 input.key === "F12" ||
                 input.key === "F11" ||
                 (modifier && ["w", "t"].includes(input.key.toLowerCase())) ||
-                (input.alt && input.key === "Tab") ||
                 (input.alt && input.key === "F4")
             ) {
                 event.preventDefault();
@@ -158,7 +174,6 @@ class ExamController {
             clearTimeout(this.blurTimer);
             this.blurTimer = null;
             this.mainWindow.webContents.send("show-post-warning", this.tabSwitchCount);
-            this.mainWindow.setAlwaysOnTop(true, "screen-saver");
         });
     }
 
@@ -316,9 +331,6 @@ class ExamController {
         
         ipcMain.on("resume-exam", () => {
             this.showExamView();
-            if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-                this.mainWindow.setAlwaysOnTop(true, "screen-saver");
-            }
         });
 
         ipcMain.on("refresh-exam", () => {
