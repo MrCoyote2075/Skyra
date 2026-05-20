@@ -43,12 +43,13 @@ class ExamController {
     constructor() {
         this.mainWindow = null;
         this.view = null;
-        
+
         this.examStarted = false;
         this.isExiting = false;
-        
+
         this.blurTimer = null;
         this.tabSwitchCount = 0;
+        this.awaitingReturn = false;
 
         this.authView = null;
         this.forceCloseTimer = null;
@@ -118,7 +119,7 @@ class ExamController {
     enforceSecurity(webContents) {
         webContents.on("devtools-opened", () => webContents.closeDevTools());
         webContents.on("context-menu", (e) => e.preventDefault());
-        
+
         webContents.on("before-input-event", (event, input) => {
             const isMac = process.platform === "darwin";
             const modifier = isMac ? input.meta : input.control;
@@ -160,6 +161,7 @@ class ExamController {
                 return;
             }
 
+            this.awaitingReturn = true;
             this.hideExamView();
             this.mainWindow.webContents.send("show-warning", this.tabSwitchCount);
 
@@ -171,6 +173,8 @@ class ExamController {
 
         app.on("browser-window-focus", () => {
             if (!this.examStarted || this.isExiting || !this.blurTimer) return;
+            if (this.awaitingReturn) return;
+
             clearTimeout(this.blurTimer);
             this.blurTimer = null;
             this.mainWindow.webContents.send("show-post-warning", this.tabSwitchCount);
@@ -179,6 +183,7 @@ class ExamController {
 
     startExam(code) {
         this.tabSwitchCount = 0;
+        this.awaitingReturn = false;
 
         if (!this.monitorDisplays()) {
             this.mainWindow.webContents.send("show-error", "Multiple monitors detected! Disconnect external displays.");
@@ -249,6 +254,11 @@ class ExamController {
 
     terminateExam(reason) {
         this.examStarted = false;
+        this.awaitingReturn = false;
+        if (this.blurTimer) {
+            clearTimeout(this.blurTimer);
+            this.blurTimer = null;
+        }
         this.destroyExamView();
 
         if (this.authView && this.mainWindow) {
@@ -319,7 +329,23 @@ class ExamController {
             }
         });
 
-        ipcMain.on("go-home", () => { this.destroyExamView(); this.examStarted = false; });
+        ipcMain.on("return-to-exam", () => {
+            if (!this.examStarted || this.isExiting) return;
+
+            if (this.blurTimer) {
+                clearTimeout(this.blurTimer);
+                this.blurTimer = null;
+            }
+
+            this.awaitingReturn = false;
+            this.showExamView();
+
+            if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                this.mainWindow.webContents.send("hide-warning");
+                this.mainWindow.webContents.send("show-post-warning", this.tabSwitchCount);
+            }
+        });
+
         ipcMain.on("hide-view", () => {
             this.hideExamView();
             if (this.authView && this.mainWindow) {
@@ -328,7 +354,7 @@ class ExamController {
         });
 
         ipcMain.on("show-view", () => this.showExamView());
-        
+
         ipcMain.on("resume-exam", () => {
             this.showExamView();
         });

@@ -1,4 +1,5 @@
 let countdownInterval;
+let googleLoggedIn = false;
 
 // Network Latency Checker
 function checkNetwork() {
@@ -62,6 +63,7 @@ function startGoogleLogin() {
 async function confirmGoogleLogin() {
     const ok = await window.electronAPI.confirmGoogleLogin();
     if (ok) {
+        googleLoggedIn = true;
         document.getElementById("google-login-container").style.display = "none";
         document.getElementById("login-container").style.display = "block";
     } else {
@@ -74,6 +76,11 @@ function startExam() {
     const networkText = document.getElementById("network-status").innerText;
     if (networkText.includes("Offline") || networkText.includes("Checking")) {
         showError("No internet connection! Please check your network and try again.");
+        return;
+    }
+
+    if (!googleLoggedIn) {
+        showError("Please sign in with your official email before starting the exam.");
         return;
     }
 
@@ -120,6 +127,10 @@ function forceQuitApp() {
     window.electronAPI.forceQuit();
 }
 
+function returnToExam() {
+    window.electronAPI.returnToExam();
+}
+
 function showError(msg) {
     hideAllOverlays();
     document.getElementById("error-message").innerText = msg;
@@ -127,6 +138,7 @@ function showError(msg) {
 }
 
 window.electronAPI.onGoogleLoginSuccess(() => {
+    googleLoggedIn = true;
     document.getElementById("google-login-container").style.display = "none";
     document.getElementById("login-container").style.display = "block";
 });
@@ -142,7 +154,6 @@ window.electronAPI.onHideLoader(() => {
 
 window.electronAPI.onExamStarted(() => {
     document.getElementById("login-container").style.display = "none";
-    document.getElementById("btn-home").style.display = "inline-block";
     document.getElementById("btn-refresh").style.display = "inline-block";
 });
 
@@ -202,12 +213,3 @@ window.electronAPI.onShowTerminated((event, reason) => {
 
     document.getElementById("terminated-overlay").style.display = "flex";
 });
-
-// Home Button Functionality
-function goHome() {
-    hideAllOverlays();
-    window.electronAPI.goHome(); 
-    document.getElementById("login-container").style.display = "block";
-    document.getElementById("btn-home").style.display = "none";
-    document.getElementById("btn-refresh").style.display = "none";
-}

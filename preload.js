@@ -8,7 +8,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     hideView: () => ipcRenderer.send("hide-view"),
     showView: () => ipcRenderer.send("show-view"),
     resumeExam: () => ipcRenderer.send("resume-exam"),
-    goHome: () => ipcRenderer.send("go-home"),
+    returnToExam: () => ipcRenderer.send("return-to-exam"),
 
     forceQuit: () => ipcRenderer.send("force-quit"),
 
@@ -23,7 +23,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
     onShowLoader: (callback) => ipcRenderer.on("show-loader", callback),
     onHideLoader: (callback) => ipcRenderer.on("hide-loader", callback),
-    
+
     openGoogleLogin: () => ipcRenderer.send("open-google-login"),
     confirmGoogleLogin: () => ipcRenderer.invoke("confirm-google-login"),
     onGoogleLoginSuccess: (callback) => ipcRenderer.on("google-login-success", callback),
