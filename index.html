@@ -21,8 +21,7 @@
         Checking...</div>
     </div>
     <div class="right">
-      <button class="btn-header refresh" id="btn-refresh" style="display: none;"
-        onclick="refreshExam()">Refresh</button>
+      <button class="btn-header refresh" id="btn-refresh" style="display: none;" onclick="refreshExam()">Refresh</button>
       <button class="btn-header exit" onclick="requestExit()">Exit</button>
     </div>
   </div>
@@ -56,17 +55,13 @@
       <h2 style="margin-top: 0;">Exam Instructions</h2>
       <ul class="rules-list">
         <li><strong style="color: var(--primary);">Stay Focused:</strong> Do not switch tabs or Desktops, minimize the
-          app, or open
-          other applications.</li>
-        <li><strong style="color: var(--primary);">Violated Actions:</strong> Keyboard
-          shortcuts such as (eg. alt + TAB, alt + F4, win + tab)
-          are Violated. Right-click is not allowed.</li>
+          app, or open other applications.</li>
+        <li><strong style="color: var(--primary);">Violated Actions:</strong> Keyboard shortcuts such as (eg. alt + TAB,
+          alt + F4, win + tab) are Violated. Right-click is not allowed.</li>
         <li><strong style="color: var(--primary);">Strict Monitoring:</strong> Switching <strong>3 times</strong> or
-          Losing focus for
-          more than <strong>5 seconds</strong> will result in immediate exam termination.</li>
+          Losing focus for more than <strong>6 seconds</strong> will result in immediate exam termination.</li>
         <li><strong style="color: var(--primary);">Hardware Violations:</strong> Dual monitors and screen sharing
-          software are
-          strictly prohibited.</li>
+          software are strictly prohibited.</li>
       </ul>
       <button class="start" onclick="acceptRules()">I Accept All Conditions</button>
     </div>
@@ -75,13 +70,10 @@
     <div class="card" id="google-login-container" style="display: none;">
       <h2>Sign in with Google</h2>
       <p style="color: var(--text-muted); font-size: 14px;">
-        Please complete Google login before starting the exam.
+        Please complete Google login.
       </p>
       <div class="notice">Use your official college email ID for login.</div>
       <button class="start" onclick="startGoogleLogin()">Sign in with Google</button>
-      <button class="btn-confirm" style="margin-top: 12px; width: 100%;" onclick="confirmGoogleLogin()">
-        Continue
-      </button>
     </div>
 
     <!-- LOGIN CARD -->
@@ -100,23 +92,27 @@
       <p>Designed and Developed by Dhanush & Praveen.</p>
     </div>
 
-    <!-- BLUR WARNING OVERLAY -->
+    <!-- TAB SWITCH WARNING OVERLAY (REDESIGNED BOX UI) -->
     <div id="warning-overlay" class="overlay">
-      <div class="warning-text">⚠️ TAB SWITCHING DETECTED ⚠️</div>
-      <p style="font-size: 18px; color: var(--text-muted); margin: 0 0 14px 0;">Click below to return before the timer ends.</p>
-      <p style="font-size: 24px; color: #facc15; font-weight: bold; margin: 0;" id="warning-count-text">Warning 1/3</p>
-      <p style="font-size: 24px;">Violation detected! App closing in...</p>
-      <div class="countdown" id="countdown-text">5</div>
-      <button class="btn-confirm warning-action" onclick="returnToExam()">Return to Exam</button>
+      <div class="modal-box warning-box">
+        <h3 class="warning-title">⚠️ Tab Switching Detected ⚠️</h3>
+        <p class="warning-sub">Click the button below to return before the timer ends.</p>
+
+        <p class="warning-count" id="warning-count-text">Warning 1/3</p>
+        <p class="warning-desc">Violation detected! App closing in...</p>
+
+        <div class="countdown warning-countdown" id="countdown-text">6</div>
+
+        <button class="btn-return" onclick="returnToExam()">Return to Exam</button>
+      </div>
     </div>
 
     <!-- POST-WARNING OVERLAY -->
     <div id="post-warning-overlay" class="overlay">
       <div class="modal-box" style="border-color: #f59e0b;">
-        <h3 style="color: #f59e0b; font-size: 24px; margin-top:0;">⚠️ Warning</h3>
+        <h3 style="color: #f59e0b; font-size: 24px; margin-top:0;">⚠️ Warning ⚠️</h3>
         <p style="font-size: 16px; line-height: 1.5;">You switched tabs or lost focus on the exam window. This action
-          has
-          been flagged.</p>
+          has been flagged.</p>
         <p style="font-size: 16px; font-weight: bold; color: #facc15;" id="post-warning-count">You have switched tabs 1
           out of 3 times.</p>
         <p style="font-size: 14px; color: var(--text-muted);">Please refrain from navigating away from the exam
@@ -126,13 +122,39 @@
       </div>
     </div>
 
+    <!-- RETRY OVERLAY (Recoverable errors) -->
+    <div id="retry-overlay" class="overlay">
+      <div class="modal-box" style="border-color: rgba(59, 130, 246, 0.6); max-width: 520px;">
+        <h3 id="retry-title" style="color: #60a5fa; font-size: 26px; margin-top:0;">Connection Failed</h3>
+        <p id="retry-message" style="font-size: 15px; color: var(--text-muted); line-height: 1.6;">
+          Failed to load the exam page. Please check your internet connection and retry.
+        </p>
+        <div class="btn-group">
+          <button class="btn-cancel" onclick="hideAllOverlays()">Dismiss</button>
+          <button class="btn-confirm" style="background: var(--primary);" onclick="retryLoad()">Retry</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- FATAL OVERLAY (Critical problems) -->
+    <div id="fatal-overlay" class="overlay">
+      <div class="modal-box" style="border-color: #ef4444; max-width: 650px;">
+        <h3 id="fatal-title" style="color: #ef4444; font-size: 28px; margin-top:0;">Fatal Error</h3>
+        <p id="fatal-message" style="font-size: 15px; color: var(--text-main); line-height: 1.6;">
+          A critical problem occurred. Please close the application.
+        </p>
+        <pre id="fatal-details"
+          style="margin-top: 12px; padding: 12px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; max-height: 220px; overflow:auto; text-align:left; color: #fca5a5; font-size: 11px;"></pre>
+        <button class="btn-confirm" style="margin-top: 15px; width: 100%;" onclick="forceQuitApp()">Exit</button>
+      </div>
+    </div>
+
     <!-- TERMINATED OVERLAY -->
     <div id="terminated-overlay" class="overlay" style="background: rgba(15, 23, 42, 0.98);">
       <div class="modal-box" style="border-color: #ef4444; max-width: 500px; background: #0f0505;">
         <h3 style="color: #ef4444; font-size: 32px; margin-top:0;">🛑 Exam Terminated</h3>
         <p id="terminate-reason" style="font-size: 18px; line-height: 1.5;">You left the secure environment for more
-          than 5
-          seconds.</p>
+          than 6 seconds.</p>
         <p style="font-size: 16px; color: var(--text-muted); margin-top: 10px;">Your session has been Terminated.</p>
         <button class="btn-confirm" style="margin-top: 25px; width: 100%; font-size: 18px; padding: 15px;"
           onclick="forceQuitApp()">Close</button>
