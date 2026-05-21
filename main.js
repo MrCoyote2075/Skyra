@@ -11,7 +11,6 @@ const path = require("path");
 // ==========================================
 // GLOBAL SWITCHES
 // ==========================================
-// THIS BLOCKS THE WINDOWS PASSKEY POPUP AND FORCES "TAP YES" PHONE VERIFICATION
 app.commandLine.appendSwitch(
     "disable-features",
     "WebAuthentication,WebAuthenticationProxy",
@@ -41,20 +40,13 @@ class ExamController {
     constructor() {
         this.mainWindow = null;
         this.view = null;
-
         this.examStarted = false;
         this.isExiting = false;
-
         this.blurTimer = null;
         this.tabSwitchCount = 0;
-        this.awaitingReturn = false;
-
         this.authView = null;
         this.forceCloseTimer = null;
-
         this.lastExamUrl = null;
-        this.refocusInterval = null;
-        this.refocusAttempts = 0;
     }
 
     initialize() {
@@ -118,8 +110,6 @@ class ExamController {
         this.mainWindow.on("close", (e) => {
             if (this.isExiting) return;
             e.preventDefault();
-
-            // Graceful close UX
             this.safeSend("show-error", "Closing...");
             if (!this.forceCloseTimer) {
                 this.forceCloseTimer = setTimeout(() => {
@@ -135,12 +125,9 @@ class ExamController {
     enforceSecurity(webContents) {
         webContents.on("devtools-opened", () => webContents.closeDevTools());
         webContents.on("context-menu", (e) => e.preventDefault());
-
         webContents.on("before-input-event", (event, input) => {
             const isMac = process.platform === "darwin";
             const modifier = isMac ? input.meta : input.control;
-
-            // Keep existing blocks (we can expand later)
             if (
                 input.key === "F12" ||
                 input.key === "F11" ||
@@ -150,32 +137,6 @@ class ExamController {
                 event.preventDefault();
             }
         });
-    }
-
-    startRefocusLoop() {
-        // keep trying to refocus for a short moment (Windows needs repeated focus)
-        if (this.refocusInterval) clearInterval(this.refocusInterval);
-
-        this.refocusAttempts = 0;
-        this.refocusInterval = setInterval(() => {
-            this.refocusAttempts++;
-
-            try {
-                if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-                    // show + focus helps on Windows
-                    this.mainWindow.show();
-                    this.mainWindow.focus();
-                }
-            } catch {
-                // ignore
-            }
-
-            // stop after ~1 second
-            if (this.refocusAttempts >= 10) {
-                clearInterval(this.refocusInterval);
-                this.refocusInterval = null;
-            }
-        }, 100);
     }
 
     safeSend(channel, ...args) {
@@ -194,7 +155,6 @@ class ExamController {
     }
 
     safeShowFatalError(title, details) {
-        // Only show in-app overlay (HTML). No native dialogs.
         this.safeSend("show-fatal", { title, details });
     }
 
@@ -211,7 +171,6 @@ class ExamController {
             }
         });
 
-        // ✅ Better coverage (recommended earlier)
         screen.on("display-removed", () => {
             if (this.examStarted && !this.isExiting) {
                 this.terminateExam(
@@ -222,7 +181,6 @@ class ExamController {
 
         screen.on("display-metrics-changed", () => {
             if (this.examStarted && !this.isExiting) {
-                // if multiple monitors appear after metrics change
                 if (!this.monitorDisplays()) {
                     this.terminateExam(
                         "Display configuration changed during the exam.",
@@ -230,11 +188,10 @@ class ExamController {
                 }
             }
         });
-        
+
         app.on("browser-window-blur", () => {
             if (!this.examStarted || this.isExiting) return;
 
-            // If some other BrowserWindow of THIS app is focused, ignore
             const activeWindow = BrowserWindow.getFocusedWindow();
             if (activeWindow) return;
 
@@ -242,56 +199,15 @@ class ExamController {
 
             if (this.tabSwitchCount > CONFIG.MAX_TAB_SWITCHES) {
                 this.isExiting = true;
-                this.terminateExam("You exceeded the maximum allowed tab switches.");
+                this.terminateExam(
+                    "You exceeded the maximum allowed tab switches."
+                );
                 return;
             }
 
-            // Show warning overlay and require explicit "Return to Exam"
-            this.awaitingReturn = true;
-
-            // ✅ BEST-EFFORT AUTO-REFOCUS (Windows needs repeated focus attempts)
-            // Note: Alt+Tab cannot be fully blocked by Electron, but this forces focus back quickly.
-            try {
-                if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-                    this.mainWindow.show();
-                    this.mainWindow.focus();
-                }
-            } catch {
-                // ignore
-            }
-
-            // Start a short refocus loop (about 1 second)
-            // Add these to constructor:
-            //   this.refocusInterval = null;
-            //   this.refocusAttempts = 0;
-            try {
-                if (this.refocusInterval) clearInterval(this.refocusInterval);
-                this.refocusAttempts = 0;
-
-                this.refocusInterval = setInterval(() => {
-                    this.refocusAttempts++;
-
-                    try {
-                        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-                            this.mainWindow.show();
-                            this.mainWindow.focus();
-                        }
-                    } catch {
-                        // ignore
-                    }
-
-                    if (this.refocusAttempts >= 10) {
-                        clearInterval(this.refocusInterval);
-                        this.refocusInterval = null;
-                    }
-                }, 100);
-            } catch {
-                // ignore
-            }
-
+            // Show warning overlay, hide exam view
             this.hideExamView();
 
-            // Send warning payload (count + seconds)
             this.safeSend("show-warning", {
                 count: this.tabSwitchCount,
                 seconds: Math.ceil(CONFIG.BLUR_GRACE_PERIOD_MS / 1000),
@@ -301,22 +217,15 @@ class ExamController {
 
             this.blurTimer = setTimeout(() => {
                 this.isExiting = true;
-                this.terminateExam("You left the application for more than 6 seconds.");
+                this.terminateExam(
+                    "You left the application for more than 6 seconds."
+                );
             }, CONFIG.BLUR_GRACE_PERIOD_MS);
-        });
-
-        app.on("browser-window-focus", () => {
-            // Important:
-            // - If awaitingReturn=true we DO NOT auto-cancel the timer.
-            // - The user MUST click Return to Exam button to continue.
-            if (!this.examStarted || this.isExiting || !this.blurTimer) return;
-            if (this.awaitingReturn) return;
         });
     }
 
     startExam(code) {
         this.tabSwitchCount = 0;
-        this.awaitingReturn = false;
 
         if (!this.monitorDisplays()) {
             this.safeSend(
@@ -385,9 +294,7 @@ class ExamController {
 
         webContents.on("did-fail-load", (event, errorCode) => {
             this.safeSend("hide-loader");
-            if (errorCode === -3) return; // navigation aborted
-
-            // small problem => retry
+            if (errorCode === -3) return;
             this.safeSend("show-retry", {
                 title: "Connection Failed",
                 message:
@@ -398,7 +305,6 @@ class ExamController {
 
     terminateExam(reason) {
         this.examStarted = false;
-        this.awaitingReturn = false;
 
         if (this.blurTimer) {
             clearTimeout(this.blurTimer);
@@ -467,16 +373,14 @@ class ExamController {
     }
 
     decodeAccessCode(code) {
+        // Paste your decode access code logic here, unchanged
+        // ...
+        // [Use your v3 logic if you want to simplify]
         if (!code || code.length < 2) throw new Error("Invalid Skyra code format");
-
-        // Step 0: Extract provider digit and core
         const idChar = code.charAt(0);
         let core = code.slice(1);
         if (!/\d/.test(idChar) || !core) throw new Error("Invalid Skyra code format");
-
-        // Helper functions matching App.jsx logic
         const reverseStr = (s) => s.split("").reverse().join("");
-
         const unswapParts = (s) => {
             const m = s.length;
             if (m % 2 === 0) {
@@ -492,7 +396,6 @@ class ExamController {
                 return left + middle + right;
             }
         };
-
         const shiftChar = (ch, delta) => {
             const charCode = ch.charCodeAt(0);
             if (ch >= "a" && ch <= "z") {
@@ -509,7 +412,6 @@ class ExamController {
             }
             return String.fromCharCode(charCode + delta);
         };
-
         const altShift = (s, startDelta) => {
             let delta = startDelta;
             return s.split("").map((ch) => {
@@ -518,18 +420,9 @@ class ExamController {
                 return out;
             }).join("");
         };
-
-        // reverse Step 5: reverse
         core = reverseStr(core);
-
-        // reverse Step 4: alternate -2, +2 starting with -2 (inverse of +2, -2)
         core = altShift(core, -2);
-
-        // reverse Step 3: unswap (swaps the halves back)
         core = unswapParts(core);
-
-        // reverse Step 2: positional reconstruction
-        // core is: Last(0) + First(1) + Middle(2...)
         const n = core.length;
         let originalToken = "";
         if (n === 1) {
@@ -540,8 +433,6 @@ class ExamController {
             const middle = n > 2 ? core.slice(2) : "";
             originalToken = first + middle + last;
         }
-
-        // reverse Step 1: Case Swap (Case swap is its own inverse)
         let finalToken = "";
         for (let i = 0; i < originalToken.length; i++) {
             const char = originalToken[i];
@@ -553,15 +444,12 @@ class ExamController {
                 finalToken += char;
             }
         }
-
-        // Provider Mapping for URL reconstruction
         const providerMap = {
             "1": "https://shorturl.at/",
             "2": "https://tinyurl.com/",
             "3": "https://bit.ly/"
         };
         const baseUrl = providerMap[idChar] || "https://shorturl.at/";
-
         return baseUrl + finalToken;
     }
 
@@ -569,7 +457,6 @@ class ExamController {
         ipcMain.on("start-exam", (event, code) => {
             this.startExam(code);
 
-            // clean google view if present
             if (this.authView && this.mainWindow) {
                 try {
                     this.mainWindow.removeBrowserView(this.authView);
@@ -588,36 +475,21 @@ class ExamController {
 
         ipcMain.on("return-to-exam", () => {
             if (!this.examStarted || this.isExiting) return;
-
             if (this.blurTimer) {
                 clearTimeout(this.blurTimer);
                 this.blurTimer = null;
             }
-
-            this.awaitingReturn = false;
-
-            // ✅ Stop refocus loop once user returns
-            if (this.refocusInterval) {
-                clearInterval(this.refocusInterval);
-                this.refocusInterval = null;
-            }
-
-            // ✅ Force a clean BrowserView re-attach (fixes header disappearing)
+            // Just re-attach exam view and hide all overlays
             if (this.view && this.mainWindow) {
                 try {
-                    this.mainWindow.setBrowserView(null);
                     this.mainWindow.setBrowserView(this.view);
                     this.resizeView();
-
-                    this.mainWindow.show();
-                    this.mainWindow.focus();
                 } catch (e) {
                     console.warn("Failed to restore exam view:", e);
                 }
             }
-
-            this.mainWindow.webContents.send("hide-warning");
-            this.mainWindow.webContents.send("show-post-warning", this.tabSwitchCount);
+            this.safeSend("hide-warning");
+            // No post-warning overlay!
         });
 
         ipcMain.on("hide-view", () => {
@@ -632,7 +504,6 @@ class ExamController {
         });
 
         ipcMain.on("show-view", () => {
-            // Ensure main window is focused and view is shown
             try {
                 this.mainWindow?.focus();
             } catch {

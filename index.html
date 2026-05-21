@@ -92,33 +92,15 @@
       <p>Designed and Developed by Dhanush & Praveen.</p>
     </div>
 
-    <!-- TAB SWITCH WARNING OVERLAY (REDESIGNED BOX UI) -->
+    <!-- TAB SWITCH WARNING OVERLAY -->
     <div id="warning-overlay" class="overlay">
       <div class="modal-box warning-box">
         <h3 class="warning-title">⚠️ Tab Switching Detected ⚠️</h3>
         <p class="warning-sub">Click the button below to return before the timer ends.</p>
-
         <p class="warning-count" id="warning-count-text">Warning 1/3</p>
         <p class="warning-desc">Violation detected! App closing in...</p>
-
         <div class="countdown warning-countdown" id="countdown-text">6</div>
-
         <button class="btn-return" onclick="returnToExam()">Return to Exam</button>
-      </div>
-    </div>
-
-    <!-- POST-WARNING OVERLAY -->
-    <div id="post-warning-overlay" class="overlay">
-      <div class="modal-box" style="border-color: #f59e0b;">
-        <h3 style="color: #f59e0b; font-size: 24px; margin-top:0;">⚠️ Warning ⚠️</h3>
-        <p style="font-size: 16px; line-height: 1.5;">You switched tabs or lost focus on the exam window. This action
-          has been flagged.</p>
-        <p style="font-size: 16px; font-weight: bold; color: #facc15;" id="post-warning-count">You have switched tabs 1
-          out of 3 times.</p>
-        <p style="font-size: 14px; color: var(--text-muted);">Please refrain from navigating away from the exam
-          environment.</p>
-        <button class="btn-cancel" style="margin-top: 15px; width: 100%; background: #f59e0b; color: #000;"
-          onclick="dismissPostWarning()">Continue Exam</button>
       </div>
     </div>
 
@@ -190,5 +172,4 @@
 
     <script src="renderer.js"></script>
 </body>
-
 </html>

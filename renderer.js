@@ -1,8 +1,6 @@
 let countdownInterval;
 let googleLoggedIn = false;
 
-let lastWarningSeconds = 6;
-
 // Network Latency Checker
 function checkNetwork() {
   const start = Date.now();
@@ -38,7 +36,6 @@ function checkNetwork() {
       }
     });
 }
-
 setTimeout(checkNetwork, 1000);
 setInterval(checkNetwork, 5000);
 
@@ -46,7 +43,7 @@ window.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => {
     document.getElementById("splash-screen").style.display = "none";
     document.getElementById("rules-screen").style.display = "flex";
-    document.getElementById("app-header").style.display = "flex";
+    ensureHeaderVisible();
   }, 4000);
 });
 
@@ -96,12 +93,9 @@ function hideAllOverlays() {
   document.getElementById("warning-overlay").style.display = "none";
   document.getElementById("exit-overlay").style.display = "none";
   document.getElementById("error-overlay").style.display = "none";
-  document.getElementById("post-warning-overlay").style.display = "none";
   document.getElementById("loading-overlay").style.display = "none";
-
   const retryOverlay = document.getElementById("retry-overlay");
   if (retryOverlay) retryOverlay.style.display = "none";
-
   const fatalOverlay = document.getElementById("fatal-overlay");
   if (fatalOverlay) fatalOverlay.style.display = "none";
 }
@@ -130,12 +124,11 @@ function forceQuitApp() {
   window.electronAPI.forceQuit();
 }
 
-// ✅ called by warning overlay button
+// --- Warning overlay button: "Return to Exam" ---
 function returnToExam() {
   window.electronAPI.returnToExam();
 }
 
-// ✅ called by retry overlay button
 function retryLoad() {
   hideAllOverlays();
   document.getElementById("loading-overlay").style.display = "flex";
@@ -148,12 +141,15 @@ function showError(msg) {
   document.getElementById("error-overlay").style.display = "flex";
 }
 
-// Keep header alive always unless terminated
+// --- Always keep header visible and restore button visibility ---
 function ensureHeaderVisible() {
   const header = document.getElementById("app-header");
   if (header) header.style.display = "flex";
+  const btnRefresh = document.getElementById("btn-refresh");
+  if (btnRefresh) btnRefresh.style.display = "inline-block";
 }
 
+// --- IPC handlers ---
 window.electronAPI.onGoogleLoginSuccess(() => {
   googleLoggedIn = true;
   document.getElementById("google-login-container").style.display = "none";
@@ -161,7 +157,6 @@ window.electronAPI.onGoogleLoginSuccess(() => {
   ensureHeaderVisible();
 });
 
-// Loaders triggered from main process
 window.electronAPI.onShowLoader(() => {
   document.getElementById("loading-overlay").style.display = "flex";
 });
@@ -172,7 +167,6 @@ window.electronAPI.onHideLoader(() => {
 
 window.electronAPI.onExamStarted(() => {
   document.getElementById("login-container").style.display = "none";
-  document.getElementById("btn-refresh").style.display = "inline-block";
   ensureHeaderVisible();
 });
 
@@ -181,21 +175,16 @@ window.electronAPI.onShowError((event, msg) => {
   showError(msg);
 });
 
-// ✅ show-warning now sends payload {count, seconds}
+// --- WARNING OVERLAY LOGIC: no post-warning, just hides on resume ---
 window.electronAPI.onShowWarning((event, payload) => {
   if (countdownInterval) clearInterval(countdownInterval);
-
   hideAllOverlays();
   ensureHeaderVisible();
 
   const overlay = document.getElementById("warning-overlay");
   overlay.style.display = "flex";
-
-  const count = payload?.count ?? payload; // backward compatible
+  const count = payload?.count ?? payload;
   const seconds = payload?.seconds ?? 6;
-
-  lastWarningSeconds = seconds;
-
   const warningCountEl = document.getElementById("warning-count-text");
   if (warningCountEl) warningCountEl.innerText = `Warning ${count}/3`;
 
@@ -214,77 +203,51 @@ window.electronAPI.onShowWarning((event, payload) => {
   }, 1000);
 });
 
-window.electronAPI.onShowPostWarning((event, count) => {
-  if (countdownInterval) clearInterval(countdownInterval);
-  hideAllOverlays();
-  ensureHeaderVisible();
-
-  document.getElementById("post-warning-overlay").style.display = "flex";
-
-  const postCountEl = document.getElementById("post-warning-count");
-  if (postCountEl)
-    postCountEl.innerText = `You have switched tabs ${count} out of 3 times.`;
-});
-
-function dismissPostWarning() {
-  hideAllOverlays();
-  ensureHeaderVisible();
-  window.electronAPI.resumeExam();
-}
-
+// --- Return from warning: just hide the warning ---
 window.electronAPI.onHideWarning(() => {
   if (countdownInterval) clearInterval(countdownInterval);
   hideAllOverlays();
   ensureHeaderVisible();
 });
 
-// ✅ recoverable error overlay with retry
+// --- Recoverable error overlay with retry ---
 window.electronAPI.onShowRetry((event, payload) => {
   hideAllOverlays();
   ensureHeaderVisible();
-
   const titleEl = document.getElementById("retry-title");
   const msgEl = document.getElementById("retry-message");
-
   if (titleEl) titleEl.innerText = payload?.title || "Something went wrong";
   if (msgEl)
     msgEl.innerText =
       payload?.message ||
       "A recoverable error occurred. Please retry.";
-
   const o = document.getElementById("retry-overlay");
   if (o) o.style.display = "flex";
 });
 
-// ✅ fatal overlay: show details and allow exit
+// --- Fatal error overlay ---
 window.electronAPI.onShowFatal((event, payload) => {
   hideAllOverlays();
   ensureHeaderVisible();
-
   const titleEl = document.getElementById("fatal-title");
   const msgEl = document.getElementById("fatal-message");
   const detailsEl = document.getElementById("fatal-details");
-
   if (titleEl) titleEl.innerText = payload?.title || "Fatal Error";
   if (msgEl)
     msgEl.innerText =
       "A critical problem occurred. Please close the application.";
   if (detailsEl) detailsEl.innerText = payload?.details || "";
-
   const o = document.getElementById("fatal-overlay");
   if (o) o.style.display = "flex";
 });
 
-// Terminated
+// --- Terminated ---
 window.electronAPI.onShowTerminated((event, reason) => {
   if (countdownInterval) clearInterval(countdownInterval);
   hideAllOverlays();
-
   document.getElementById("login-container").style.display = "none";
   document.getElementById("app-header").style.display = "none";
-
   const terminateReasonEl = document.getElementById("terminate-reason");
   if (terminateReasonEl && reason) terminateReasonEl.innerText = reason;
-
   document.getElementById("terminated-overlay").style.display = "flex";
 });
