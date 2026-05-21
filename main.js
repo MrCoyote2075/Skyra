@@ -326,9 +326,8 @@ class ExamController {
             return;
         }
 
-        let decodedUrl;
         try {
-            decodedUrl = this.decodeAccessCode(code);
+            this.lastExamUrl = this.decodeAccessCode(code);
         } catch (error) {
             this.safeSend("show-error", "Invalid Access Code.");
             return;
@@ -348,7 +347,6 @@ class ExamController {
         this.enforceSecurity(this.view.webContents);
         this.setupViewNavigation();
 
-        this.lastExamUrl = "https://is.gd/" + decodedUrl;
         this.view.webContents.loadURL(this.lastExamUrl);
     }
 
@@ -468,23 +466,103 @@ class ExamController {
         }
     }
 
-    decodeAccessCode(encodedStr) {
-        if (!encodedStr.startsWith("DP-")) throw new Error("Invalid format");
-        const encoded = encodedStr.slice(3);
-        const charset =
-            "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-        const shifts = [-1, 2, -4, 2, -2, 0, -2, 2, -7, 4];
+    decodeAccessCode(code) {
+        if (!code || code.length < 2) throw new Error("Invalid Skyra code format");
 
-        let original = "";
-        for (let i = 0; i < encoded.length; i++) {
-            const index = charset.indexOf(encoded[i]);
-            if (index === -1) throw new Error("Invalid character");
-            let originalIndex =
-                (index - shifts[i % shifts.length]) % charset.length;
-            if (originalIndex < 0) originalIndex += charset.length;
-            original += charset[originalIndex];
+        // Step 0: Extract provider digit and core
+        const idChar = code.charAt(0);
+        let core = code.slice(1);
+        if (!/\d/.test(idChar) || !core) throw new Error("Invalid Skyra code format");
+
+        // Helper functions matching App.jsx logic
+        const reverseStr = (s) => s.split("").reverse().join("");
+
+        const unswapParts = (s) => {
+            const m = s.length;
+            if (m % 2 === 0) {
+                const half = m / 2;
+                const right = s.slice(0, half);
+                const left = s.slice(half);
+                return left + right;
+            } else {
+                const leftLen = Math.floor(m / 2);
+                const right = s.slice(0, leftLen);
+                const middle = s.charAt(leftLen);
+                const left = s.slice(leftLen + 1);
+                return left + middle + right;
+            }
+        };
+
+        const shiftChar = (ch, delta) => {
+            const charCode = ch.charCodeAt(0);
+            if (ch >= "a" && ch <= "z") {
+                const base = "a".charCodeAt(0);
+                return String.fromCharCode(((charCode - base + delta + 26) % 26) + base);
+            }
+            if (ch >= "A" && ch <= "Z") {
+                const base = "A".charCodeAt(0);
+                return String.fromCharCode(((charCode - base + delta + 26) % 26) + base);
+            }
+            if (ch >= "0" && ch <= "9") {
+                const base = "0".charCodeAt(0);
+                return String.fromCharCode(((charCode - base + delta + 10) % 10) + base);
+            }
+            return String.fromCharCode(charCode + delta);
+        };
+
+        const altShift = (s, startDelta) => {
+            let delta = startDelta;
+            return s.split("").map((ch) => {
+                const out = shiftChar(ch, delta);
+                delta = -delta;
+                return out;
+            }).join("");
+        };
+
+        // reverse Step 5: reverse
+        core = reverseStr(core);
+
+        // reverse Step 4: alternate -2, +2 starting with -2 (inverse of +2, -2)
+        core = altShift(core, -2);
+
+        // reverse Step 3: unswap (swaps the halves back)
+        core = unswapParts(core);
+
+        // reverse Step 2: positional reconstruction
+        // core is: Last(0) + First(1) + Middle(2...)
+        const n = core.length;
+        let originalToken = "";
+        if (n === 1) {
+            originalToken = core;
+        } else {
+            const last = core.charAt(0);
+            const first = core.charAt(1);
+            const middle = n > 2 ? core.slice(2) : "";
+            originalToken = first + middle + last;
         }
-        return original;
+
+        // reverse Step 1: Case Swap (Case swap is its own inverse)
+        let finalToken = "";
+        for (let i = 0; i < originalToken.length; i++) {
+            const char = originalToken[i];
+            if (char >= "a" && char <= "z") {
+                finalToken += char.toUpperCase();
+            } else if (char >= "A" && char <= "Z") {
+                finalToken += char.toLowerCase();
+            } else {
+                finalToken += char;
+            }
+        }
+
+        // Provider Mapping for URL reconstruction
+        const providerMap = {
+            "1": "https://shorturl.at/",
+            "2": "https://tinyurl.com/",
+            "3": "https://bit.ly/"
+        };
+        const baseUrl = providerMap[idChar] || "https://shorturl.at/";
+
+        return baseUrl + finalToken;
     }
 
     registerIpcHandlers() {
