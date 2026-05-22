@@ -376,7 +376,11 @@ class ExamController {
         // Paste your decode access code logic here, unchanged
         // ...
         // [Use your v3 logic if you want to simplify]
-        if (!code || code.length < 2) throw new Error("Invalid Skyra code format");
+        if (!code || code.length < 5) throw new Error("Invalid Skyra code format");
+        const signature = code.slice(0, 3);
+        if (signature !== "DP-") throw new Error("Invalid Skyra code, valid eg. DP-abcdef");
+        
+        code = code.slice(3);
         const idChar = code.charAt(0);
         let core = code.slice(1);
         if (!/\d/.test(idChar) || !core) throw new Error("Invalid Skyra code format");
