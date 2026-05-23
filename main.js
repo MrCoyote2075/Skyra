@@ -51,6 +51,8 @@ class ExamController {
         this.forceCloseTimer = null;
         this.lastExamUrl = null;
         this.sessionMetaPath = path.join(app.getPath("userData"), SESSION_META_FILE);
+        this.refocusInterval = null;
+        this.refocusAttempts = 0;
     }
 
     readSessionMeta() {
@@ -215,6 +217,31 @@ class ExamController {
         this.safeSend("show-fatal", { title, details });
     }
 
+    startRefocusLoop() {
+        if (this.refocusInterval) {
+            clearInterval(this.refocusInterval);
+            this.refocusInterval = null;
+        }
+
+        this.refocusAttempts = 0;
+        this.refocusInterval = setInterval(() => {
+            this.refocusAttempts++;
+            try {
+                if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                    this.mainWindow.show();
+                    this.mainWindow.focus();
+                }
+            } catch {
+                // ignore
+            }
+
+            if (this.refocusAttempts >= 10) {
+                clearInterval(this.refocusInterval);
+                this.refocusInterval = null;
+            }
+        }, 100);
+    }
+
     monitorDisplays() {
         return screen.getAllDisplays().length <= 1;
     }
@@ -261,6 +288,16 @@ class ExamController {
                 );
                 return;
             }
+
+            try {
+                if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                    this.mainWindow.show();
+                    this.mainWindow.focus();
+                }
+            } catch {
+                // ignore
+            }
+            this.startRefocusLoop();
 
             // Show warning overlay, hide exam view
             this.hideExamView();
@@ -352,6 +389,7 @@ class ExamController {
         webContents.on("did-fail-load", (event, errorCode) => {
             this.safeSend("hide-loader");
             if (errorCode === -3) return;
+            this.hideExamView();
             this.safeSend("show-retry", {
                 title: "Connection Failed",
                 message:
@@ -362,6 +400,11 @@ class ExamController {
 
     terminateExam(reason) {
         this.examStarted = false;
+
+        if (this.refocusInterval) {
+            clearInterval(this.refocusInterval);
+            this.refocusInterval = null;
+        }
 
         if (this.blurTimer) {
             clearTimeout(this.blurTimer);
@@ -540,6 +583,10 @@ class ExamController {
                 clearTimeout(this.blurTimer);
                 this.blurTimer = null;
             }
+            if (this.refocusInterval) {
+                clearInterval(this.refocusInterval);
+                this.refocusInterval = null;
+            }
             // Just re-attach exam view and hide all overlays
             if (this.view && this.mainWindow) {
                 try {
@@ -584,6 +631,7 @@ class ExamController {
 
         ipcMain.on("retry-load", () => {
             if (this.view && this.lastExamUrl) {
+                this.showExamView();
                 this.safeSend("show-loader");
                 this.view.webContents.loadURL(this.lastExamUrl);
             } else {

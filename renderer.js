@@ -145,6 +145,11 @@ function retryLoad() {
   window.electronAPI.retryLoad();
 }
 
+function dismissRetry() {
+  hideAllOverlays();
+  window.electronAPI.showView();
+}
+
 function showError(msg) {
   hideAllOverlays();
   document.getElementById("error-message").innerText = msg;
