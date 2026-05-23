@@ -47,8 +47,18 @@ window.addEventListener("DOMContentLoaded", () => {
   }, 4000);
 });
 
-function acceptRules() {
+async function acceptRules() {
   document.getElementById("rules-screen").style.display = "none";
+  try {
+    const state = await window.electronAPI.getLoginState();
+    if (state?.loggedIn) {
+      googleLoggedIn = true;
+      document.getElementById("login-container").style.display = "block";
+      return;
+    }
+  } catch {
+    // ignore and fall back to login screen
+  }
   document.getElementById("google-login-container").style.display = "block";
 }
 

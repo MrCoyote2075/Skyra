@@ -7,6 +7,7 @@ const {
     session,
 } = require("electron");
 const path = require("path");
+const fs = require("fs");
 
 // ==========================================
 // GLOBAL SWITCHES
@@ -24,6 +25,7 @@ const CONFIG = {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     MAX_TAB_SWITCHES: 3,
     BLUR_GRACE_PERIOD_MS: 10000,
+    GOOGLE_LOGIN_TTL_MS: 60 * 60 * 1000,
     ALLOWED_DOMAINS: [
         "hackerearth.com",
         "hackerrank.com",
@@ -35,6 +37,7 @@ const CONFIG = {
         "facebook.com",
     ],
 };
+const SESSION_META_FILE = "session-meta.json";
 
 class ExamController {
     constructor() {
@@ -47,6 +50,57 @@ class ExamController {
         this.authView = null;
         this.forceCloseTimer = null;
         this.lastExamUrl = null;
+        this.sessionMetaPath = path.join(app.getPath("userData"), SESSION_META_FILE);
+    }
+
+    readSessionMeta() {
+        try {
+            if (!fs.existsSync(this.sessionMetaPath)) return {};
+            return JSON.parse(fs.readFileSync(this.sessionMetaPath, "utf8"));
+        } catch {
+            return {};
+        }
+    }
+
+    writeSessionMeta(meta) {
+        try {
+            fs.writeFileSync(this.sessionMetaPath, JSON.stringify(meta), "utf8");
+        } catch (e) {
+            console.warn("Failed to write session metadata:", e);
+        }
+    }
+
+    markGoogleLoginNow() {
+        const meta = this.readSessionMeta();
+        meta.lastGoogleLoginAt = Date.now();
+        this.writeSessionMeta(meta);
+    }
+
+    isLoginWithinTtl() {
+        const meta = this.readSessionMeta();
+        const ts = Number(meta.lastGoogleLoginAt || 0);
+        if (!Number.isFinite(ts) || ts <= 0) return false;
+        return Date.now() - ts <= CONFIG.GOOGLE_LOGIN_TTL_MS;
+    }
+
+    async hasGoogleAuthCookies() {
+        try {
+            const cookies = await session.defaultSession.cookies.get({
+                domain: "google.com",
+            });
+            return cookies.some((c) =>
+                ["SID", "HSID", "SSID", "APISID", "SAPISID", "SIDCC"].some(
+                    (name) => c.name.includes(name),
+                ),
+            );
+        } catch {
+            return false;
+        }
+    }
+
+    async shouldPreserveLoginSession() {
+        if (!this.isLoginWithinTtl()) return false;
+        return await this.hasGoogleAuthCookies();
     }
 
     initialize() {
@@ -73,7 +127,10 @@ class ExamController {
 
         app.whenReady().then(async () => {
             try {
-                await session.defaultSession.clearStorageData();
+                const preserveLogin = await this.shouldPreserveLoginSession();
+                if (!preserveLogin) {
+                    await session.defaultSession.clearStorageData();
+                }
             } catch (e) {
                 console.warn("Failed to clear storage at startup:", e);
             }
@@ -550,7 +607,10 @@ class ExamController {
         ipcMain.on("exit-exam", async () => {
             this.isExiting = true;
             try {
-                await session.defaultSession.clearStorageData();
+                const preserveLogin = await this.shouldPreserveLoginSession();
+                if (!preserveLogin) {
+                    await session.defaultSession.clearStorageData();
+                }
             } catch {
                 // ignore
             }
@@ -560,7 +620,10 @@ class ExamController {
         ipcMain.on("force-quit", async () => {
             this.isExiting = true;
             try {
-                await session.defaultSession.clearStorageData();
+                const preserveLogin = await this.shouldPreserveLoginSession();
+                if (!preserveLogin) {
+                    await session.defaultSession.clearStorageData();
+                }
             } catch {
                 // ignore
             }
@@ -590,6 +653,7 @@ class ExamController {
             );
 
             if (isLoggedIn && this.authView && this.mainWindow) {
+                this.markGoogleLoginNow();
                 try {
                     this.mainWindow.removeBrowserView(this.authView);
                     if (
@@ -606,6 +670,12 @@ class ExamController {
 
             return isLoggedIn;
         });
+
+        ipcMain.handle("get-login-state", async () => {
+            const preserveLogin = await this.shouldPreserveLoginSession();
+            return { loggedIn: preserveLogin };
+        });
+
     }
 
     createGoogleLoginView() {
@@ -642,6 +712,7 @@ class ExamController {
             );
 
             if (isLoggedIn) {
+                this.markGoogleLoginNow();
                 try {
                     this.mainWindow.removeBrowserView(this.authView);
                     if (
