@@ -72,9 +72,70 @@ class ExamController {
         }
     }
 
-    markGoogleLoginNow() {
+    isValidEmail(value) {
+        if (!value || typeof value !== "string") return false;
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(value.trim());
+    }
+
+    deriveNameFromEmail(email) {
+        if (!this.isValidEmail(email)) return "";
+        const localPart = email.trim().split("@")[0] || "";
+        if (!localPart) return "";
+        return localPart
+            .split(/[._-]+/)
+            .filter(Boolean)
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(" ");
+    }
+
+    normalizeProfile(profile) {
+        if (!profile || typeof profile !== "object") {
+            return { name: "", email: "", photoUrl: "" };
+        }
+
+        const email = String(profile.email || "").trim();
+        const validEmail = this.isValidEmail(email) ? email : "";
+        const photoUrl = this.normalizePhotoUrl(profile.photoUrl || "");
+        let name = String(profile.name || "").trim();
+
+        if (!name && validEmail) {
+            name = this.deriveNameFromEmail(validEmail);
+        }
+
+        return { name, email: validEmail, photoUrl };
+    }
+
+    sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    getCachedGoogleProfile() {
+        const meta = this.readSessionMeta();
+        const normalized = this.normalizeProfile(meta.lastGoogleProfile || {});
+        if (!normalized.email && !normalized.name && !normalized.photoUrl) return null;
+        return normalized;
+    }
+
+    saveGoogleProfile(profile) {
+        const normalized = this.normalizeProfile(profile);
+        if (!normalized.email && !normalized.name && !normalized.photoUrl) return;
+        const meta = this.readSessionMeta();
+        meta.lastGoogleProfile = normalized;
+        this.writeSessionMeta(meta);
+    }
+
+    clearSavedGoogleProfile(meta) {
+        const nextMeta = meta || this.readSessionMeta();
+        delete nextMeta.lastGoogleProfile;
+        this.writeSessionMeta(nextMeta);
+    }
+
+    markGoogleLoginNow(profile = null) {
         const meta = this.readSessionMeta();
         meta.lastGoogleLoginAt = Date.now();
+        if (profile) {
+            meta.lastGoogleProfile = this.normalizeProfile(profile);
+        }
         this.writeSessionMeta(meta);
     }
 
@@ -100,9 +161,364 @@ class ExamController {
         }
     }
 
+    async extractProfileFromCookies() {
+        try {
+            const cookies = await session.defaultSession.cookies.get({
+                domain: ".google.com",
+            });
+            for (const cookie of cookies) {
+                const decoded = decodeURIComponent(String(cookie.value || ""));
+                const emailMatch = decoded.match(
+                    /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/,
+                );
+                if (emailMatch) {
+                    return this.normalizeProfile({
+                        name: "",
+                        email: emailMatch[0],
+                        photoUrl: "",
+                    });
+                }
+            }
+        } catch {
+            // ignore
+        }
+        return null;
+    }
+
     async shouldPreserveLoginSession() {
         if (!this.isLoginWithinTtl()) return false;
         return await this.hasGoogleAuthCookies();
+    }
+
+    parseListAccountsPayload(rawText) {
+        if (!rawText || typeof rawText !== "string") return null;
+        const startIdx = rawText.indexOf("[");
+        if (startIdx < 0) return null;
+        try {
+            return JSON.parse(rawText.slice(startIdx));
+        } catch {
+            return null;
+        }
+    }
+
+    getFirstEmailFromAnyNode(node) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+        const stack = [node];
+        while (stack.length > 0) {
+            const current = stack.pop();
+            if (typeof current === "string" && emailRegex.test(current.trim())) {
+                return current.trim();
+            }
+            if (Array.isArray(current)) {
+                for (let i = current.length - 1; i >= 0; i--) stack.push(current[i]);
+            } else if (current && typeof current === "object") {
+                const values = Object.values(current);
+                for (let i = values.length - 1; i >= 0; i--) stack.push(values[i]);
+            }
+        }
+        return "";
+    }
+
+    findAccountArray(node) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+        const stack = [node];
+        while (stack.length > 0) {
+            const current = stack.pop();
+            if (Array.isArray(current)) {
+                if (
+                    current.length >= 4 &&
+                    typeof current[3] === "string" &&
+                    emailRegex.test(current[3].trim())
+                ) {
+                    return current;
+                }
+                const hasAnyEmail = current.some(
+                    (v) => typeof v === "string" && emailRegex.test(v.trim()),
+                );
+                if (hasAnyEmail) return current;
+
+                for (let i = current.length - 1; i >= 0; i--) stack.push(current[i]);
+            } else if (current && typeof current === "object") {
+                const values = Object.values(current);
+                for (let i = values.length - 1; i >= 0; i--) stack.push(values[i]);
+            }
+        }
+        return null;
+    }
+
+    normalizePhotoUrl(photoUrl) {
+        if (!photoUrl || typeof photoUrl !== "string") return "";
+        const trimmed = photoUrl.trim();
+        if (!trimmed) return "";
+        if (trimmed.startsWith("//")) return `https:${trimmed}`;
+        return trimmed;
+    }
+
+    isLikelyPhotoUrl(value) {
+        if (!value || typeof value !== "string") return false;
+        const v = value.trim();
+        if (!v.startsWith("http://") && !v.startsWith("https://") && !v.startsWith("//")) {
+            return false;
+        }
+        return /(googleusercontent|ggpht|gstatic|lh3)/i.test(v);
+    }
+
+    extractProfileFromListAccounts(payload) {
+        const account = this.findAccountArray(payload);
+        if (!account) return null;
+
+        const email = this.getFirstEmailFromAnyNode(account);
+        if (!email) return null;
+
+        let name = "";
+        if (typeof account[2] === "string") {
+            const candidate = account[2].trim();
+            if (candidate && candidate !== email) name = candidate;
+        }
+
+        if (!name) {
+            const nameCandidate = account.find((item) => {
+                if (typeof item !== "string") return false;
+                const candidate = item.trim();
+                if (!candidate || candidate === email) return false;
+                if (candidate.includes("@")) return false;
+                if (candidate.startsWith("http://") || candidate.startsWith("https://")) return false;
+                if (candidate.startsWith("//")) return false;
+                return candidate.length > 1;
+            });
+            name = typeof nameCandidate === "string" ? nameCandidate.trim() : "";
+        }
+
+        let photoUrl = "";
+        if (typeof account[4] === "string" && this.isLikelyPhotoUrl(account[4])) {
+            photoUrl = this.normalizePhotoUrl(account[4]);
+        }
+        if (!photoUrl) {
+            const photoCandidate = account.find((item) => this.isLikelyPhotoUrl(item));
+            photoUrl = this.normalizePhotoUrl(photoCandidate);
+        }
+
+        return this.normalizeProfile({ name, email, photoUrl });
+    }
+
+    extractProfileFromRawText(rawText) {
+        if (!rawText || typeof rawText !== "string") return null;
+
+        const payload = this.parseListAccountsPayload(rawText);
+        if (payload) {
+            const parsed = this.extractProfileFromListAccounts(payload);
+            if (parsed?.email) return parsed;
+        }
+
+        const emailMatch = rawText.match(
+            /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/,
+        );
+        const photoMatch = rawText.match(
+            /(https?:\/\/(?:lh3|lh4|lh5|lh6)\.googleusercontent\.com\/[^\s"']+)/i,
+        );
+
+        if (!emailMatch) return null;
+
+        return this.normalizeProfile({
+            name: "",
+            email: emailMatch[0],
+            photoUrl: photoMatch ? photoMatch[1] : "",
+        });
+    }
+
+    async fetchCurrentGoogleProfile() {
+        const ses = session.defaultSession;
+        if (!ses || typeof ses.fetch !== "function") return null;
+
+        const profileUrls = [
+            "https://accounts.google.com/ListAccounts?gpsia=1&source=ChromiumBrowser&json=standard",
+            "https://accounts.google.com/ListAccounts?gpsia=1&source=ChromiumBrowser",
+            "https://accounts.google.com/AccountChooser?continue=https%3A%2F%2Fwww.google.com%2F&hl=en",
+            "https://myaccount.google.com/",
+        ];
+
+        for (const profileUrl of profileUrls) {
+            try {
+                const response = await ses.fetch(profileUrl, {
+                    method: "GET",
+                    credentials: "include",
+                    cache: "no-store",
+                    headers: { Accept: "application/json,text/plain,*/*" },
+                });
+                if (!response.ok) continue;
+                const rawText = await response.text();
+                const profile = this.extractProfileFromRawText(rawText);
+                if (profile?.email) return profile;
+            } catch {
+                // try next endpoint
+            }
+        }
+
+        return await this.extractProfileFromCookies();
+    }
+
+    async captureProfileFromAuthView() {
+        if (
+            !this.authView ||
+            !this.authView.webContents ||
+            this.authView.webContents.isDestroyed()
+        ) {
+            return null;
+        }
+
+        // 1) Try extracting directly from the currently rendered Google page.
+        try {
+            const domProfile = await this.authView.webContents.executeJavaScript(
+                `(() => {
+                    try {
+                        const emailRegex = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/;
+                        const html = document.documentElement?.outerHTML || "";
+                        const text = document.body?.innerText || "";
+                        const combined = html + "\\n" + text;
+
+                        const explicitEmailSelectors = [
+                            "[data-email]",
+                            "[data-identifier]",
+                            "[email]",
+                            "[data-account-email]"
+                        ];
+
+                        let email = "";
+                        for (const selector of explicitEmailSelectors) {
+                            const node = document.querySelector(selector);
+                            if (!node) continue;
+                            const attrs = [
+                                node.getAttribute("data-email"),
+                                node.getAttribute("data-identifier"),
+                                node.getAttribute("email"),
+                                node.getAttribute("data-account-email"),
+                                node.textContent
+                            ].filter(Boolean);
+                            for (const value of attrs) {
+                                const m = String(value).match(emailRegex);
+                                if (m) {
+                                    email = m[0];
+                                    break;
+                                }
+                            }
+                            if (email) break;
+                        }
+
+                        if (!email) {
+                            const mailtoNode = document.querySelector('a[href^="mailto:"]');
+                            if (mailtoNode) {
+                                const href = mailtoNode.getAttribute("href") || "";
+                                const m = href.match(emailRegex);
+                                if (m) email = m[0];
+                            }
+                        }
+
+                        if (!email) {
+                            const m = combined.match(emailRegex);
+                            if (m) email = m[0];
+                        }
+
+                        let photoUrl = "";
+                        const avatarImg = document.querySelector('img[src*="googleusercontent"], img[src*="ggpht"], img[src*="gstatic"]');
+                        if (avatarImg?.src) photoUrl = avatarImg.src;
+
+                        return {
+                            email: email || "",
+                            name: "",
+                            photoUrl: photoUrl || ""
+                        };
+                    } catch {
+                        return { email: "", name: "", photoUrl: "" };
+                    }
+                })();`,
+                true,
+            );
+
+            const normalizedDomProfile = this.normalizeProfile(domProfile || {});
+            if (normalizedDomProfile.email) return normalizedDomProfile;
+        } catch {
+            // ignore and continue
+        }
+
+        // 2) Try Google ListAccounts endpoints from inside auth view.
+        try {
+            const rawText = await this.authView.webContents.executeJavaScript(
+                `(async () => {
+                    try {
+                        const endpoints = [
+                            "/ListAccounts?gpsia=1&source=ChromiumBrowser&json=standard",
+                            "/ListAccounts?gpsia=1&source=ChromiumBrowser"
+                        ];
+                        for (const endpoint of endpoints) {
+                            try {
+                                const res = await fetch(endpoint, {
+                                    method: "GET",
+                                    credentials: "include",
+                                    cache: "no-store",
+                                    headers: { "Accept": "application/json,text/plain,*/*" }
+                                });
+                                if (res.ok) {
+                                    const txt = await res.text();
+                                    if (txt && txt.length) return txt;
+                                }
+                            } catch {
+                                // continue to next endpoint
+                            }
+                        }
+                        return "";
+                    } catch {
+                        return "";
+                    }
+                })();`,
+                true,
+            );
+
+            const profile = this.extractProfileFromRawText(rawText);
+            if (profile?.email) return profile;
+        } catch {
+            // ignore and use fallback
+        }
+
+        try {
+            const profile = await this.fetchCurrentGoogleProfile();
+            return this.normalizeProfile(profile || {});
+        } catch {
+            return null;
+        }
+    }
+
+    async captureProfileWithRetries(maxAttempts = 3) {
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            const profile = await this.captureProfileFromAuthView();
+            if (profile?.email) return profile;
+            await this.sleep(350 * attempt);
+        }
+        return null;
+    }
+
+    async getCurrentUserProfile() {
+        const loggedIn = await this.shouldPreserveLoginSession();
+        if (!loggedIn) {
+            return { loggedIn: false, name: "", email: "", photoUrl: "" };
+        }
+
+        let profile = this.getCachedGoogleProfile();
+        try {
+            if (!profile?.email) {
+                profile = await this.fetchCurrentGoogleProfile();
+                if (profile?.email) this.saveGoogleProfile(profile);
+            }
+        } catch (e) {
+            console.warn("Failed to fetch current Google profile:", e);
+        }
+
+        const normalized = this.normalizeProfile(profile || {});
+        return {
+            loggedIn: true,
+            name: normalized.name || "",
+            email: normalized.email || "",
+            photoUrl: normalized.photoUrl || "",
+        };
     }
 
     initialize() {
@@ -132,6 +548,10 @@ class ExamController {
                 const preserveLogin = await this.shouldPreserveLoginSession();
                 if (!preserveLogin) {
                     await session.defaultSession.clearStorageData();
+                    const meta = this.readSessionMeta();
+                    meta.lastGoogleLoginAt = 0;
+                    delete meta.lastGoogleProfile;
+                    this.writeSessionMeta(meta);
                 }
             } catch (e) {
                 console.warn("Failed to clear storage at startup:", e);
@@ -701,7 +1121,8 @@ class ExamController {
             );
 
             if (isLoggedIn && this.authView && this.mainWindow) {
-                this.markGoogleLoginNow();
+                const profile = await this.captureProfileWithRetries(4);
+                this.markGoogleLoginNow(profile);
                 try {
                     this.mainWindow.removeBrowserView(this.authView);
                     if (
@@ -724,6 +1145,10 @@ class ExamController {
             return { loggedIn: preserveLogin };
         });
 
+        ipcMain.handle("get-current-user-profile", async () => {
+            return await this.getCurrentUserProfile();
+        });
+
         ipcMain.handle("sign-out", async () => {
             try {
                 await session.defaultSession.clearStorageData();
@@ -732,6 +1157,7 @@ class ExamController {
             }
             const meta = this.readSessionMeta();
             meta.lastGoogleLoginAt = 0;
+            delete meta.lastGoogleProfile;
             this.writeSessionMeta(meta);
             return { success: true };
         });
@@ -772,7 +1198,8 @@ class ExamController {
             );
 
             if (isLoggedIn) {
-                this.markGoogleLoginNow();
+                const profile = await this.captureProfileWithRetries(4);
+                this.markGoogleLoginNow(profile);
                 try {
                     this.mainWindow.removeBrowserView(this.authView);
                     if (

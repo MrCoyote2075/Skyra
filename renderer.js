@@ -1,5 +1,49 @@
 let countdownInterval;
 let googleLoggedIn = false;
+let signedInProfile = null;
+
+function hidePreExamCards() {
+  const ids = [
+    "rules-screen",
+    "google-login-container",
+    "signed-in-container",
+    "login-container",
+  ];
+  ids.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
+}
+
+function renderSignedInAccount(profile) {
+  const emailEl = document.getElementById("signed-in-email");
+  const avatarEl = document.getElementById("signed-in-avatar");
+  const avatarFallbackEl = document.getElementById("signed-in-avatar-fallback");
+
+  if (!emailEl || !avatarEl || !avatarFallbackEl) return;
+
+  const email = String(profile?.email || "").trim();
+  const photoUrl = String(profile?.photoUrl || "").trim();
+
+  emailEl.innerText = email || "Signed in with Google";
+
+  const fallbackLetter = (email.charAt(0) || "G").toUpperCase();
+  avatarFallbackEl.innerText = fallbackLetter;
+
+  if (photoUrl) {
+    avatarEl.onerror = () => {
+      avatarEl.style.display = "none";
+      avatarFallbackEl.style.display = "grid";
+    };
+    avatarEl.src = photoUrl;
+    avatarEl.style.display = "block";
+    avatarFallbackEl.style.display = "none";
+  } else {
+    avatarEl.removeAttribute("src");
+    avatarEl.style.display = "none";
+    avatarFallbackEl.style.display = "grid";
+  }
+}
 
 // Network Latency Checker
 function checkNetwork() {
@@ -49,18 +93,21 @@ window.addEventListener("DOMContentLoaded", () => {
 });
 
 async function acceptRules() {
-  document.getElementById("rules-screen").style.display = "none";
+  hidePreExamCards();
   try {
-    const state = await window.electronAPI.getLoginState();
-    if (state?.loggedIn) {
+    const profileState = await window.electronAPI.getCurrentUserProfile();
+    if (profileState?.loggedIn) {
       googleLoggedIn = true;
-      document.getElementById("login-container").style.display = "block";
-      setPreExamHeaderButtons();
+      signedInProfile = profileState;
+      renderSignedInAccount(signedInProfile);
+      document.getElementById("signed-in-container").style.display = "block";
+      setSignedInPreviewHeaderButtons();
       return;
     }
   } catch {
     // ignore and fall back to login screen
   }
+  signedInProfile = null;
   document.getElementById("google-login-container").style.display = "block";
   setPreExamHeaderButtons();
 }
@@ -75,7 +122,7 @@ async function confirmGoogleLogin() {
     googleLoggedIn = true;
     document.getElementById("google-login-container").style.display = "none";
     document.getElementById("login-container").style.display = "block";
-    setPreExamHeaderButtons();
+    setAccessCodeHeaderButtons();
   } else {
     showError("Google login not detected yet. Please sign in and try again.");
   }
@@ -146,12 +193,24 @@ async function manualSignOut() {
   }
 
   googleLoggedIn = false;
+  signedInProfile = null;
   hideAllOverlays();
   document.getElementById("code").value = "";
+  document.getElementById("signed-in-container").style.display = "none";
   document.getElementById("login-container").style.display = "none";
   document.getElementById("rules-screen").style.display = "none";
   document.getElementById("google-login-container").style.display = "block";
   setPreExamHeaderButtons();
+}
+
+function continueWithSignedInUser() {
+  if (!googleLoggedIn) {
+    showError("Please sign in with your official email before starting the exam.");
+    return;
+  }
+  document.getElementById("signed-in-container").style.display = "none";
+  document.getElementById("login-container").style.display = "block";
+  setAccessCodeHeaderButtons();
 }
 
 // --- Warning overlay button: "Return to Exam" ---
@@ -196,13 +255,29 @@ function setInExamHeaderButtons() {
   if (btnSignout) btnSignout.style.display = "none";
 }
 
+function setAccessCodeHeaderButtons() {
+  const btnRefresh = document.getElementById("btn-refresh");
+  const btnSignout = document.getElementById("btn-signout");
+  if (btnRefresh) btnRefresh.style.display = "none";
+  if (btnSignout) btnSignout.style.display = "none";
+}
+
+function setSignedInPreviewHeaderButtons() {
+  const btnRefresh = document.getElementById("btn-refresh");
+  const btnSignout = document.getElementById("btn-signout");
+  if (btnRefresh) btnRefresh.style.display = "none";
+  if (btnSignout) btnSignout.style.display = "none";
+}
+
 // --- IPC handlers ---
 window.electronAPI.onGoogleLoginSuccess(() => {
   googleLoggedIn = true;
+  signedInProfile = null;
+  document.getElementById("signed-in-container").style.display = "none";
   document.getElementById("google-login-container").style.display = "none";
   document.getElementById("login-container").style.display = "block";
   ensureHeaderVisible();
-  setPreExamHeaderButtons();
+  setAccessCodeHeaderButtons();
 });
 
 window.electronAPI.onShowLoader(() => {
@@ -222,7 +297,7 @@ window.electronAPI.onExamStarted(() => {
 window.electronAPI.onShowError((event, msg) => {
   ensureHeaderVisible();
   if (googleLoggedIn && document.getElementById("login-container").style.display !== "none") {
-    setPreExamHeaderButtons();
+    setAccessCodeHeaderButtons();
   }
   showError(msg);
 });

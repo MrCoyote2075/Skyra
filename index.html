@@ -77,6 +77,27 @@
       <button class="start" onclick="startGoogleLogin()">Sign in with Google</button>
     </div>
 
+    <!-- SIGNED-IN ACCOUNT CARD -->
+    <div class="card" id="signed-in-container" style="display: none;">
+      <h2>Welcome back</h2>
+      <p style="color: var(--text-muted); font-size: 14px;">
+        Continue with your signed-in Google account.
+      </p>
+      <div class="account-preview">
+        <div class="avatar-wrap">
+          <img id="signed-in-avatar" alt="User avatar" style="display: none;" />
+          <div id="signed-in-avatar-fallback">U</div>
+        </div>
+        <div class="account-meta">
+          <div class="account-email account-email-single" id="signed-in-email">No email available</div>
+        </div>
+      </div>
+      <div class="account-actions">
+        <button class="start" onclick="continueWithSignedInUser()">Continue</button>
+        <button class="btn-secondary" onclick="manualSignOut()">Sign out</button>
+      </div>
+    </div>
+
     <!-- LOGIN CARD -->
     <div class="card" id="login-container" style="display: none;">
       <h2>Join Contest</h2>
