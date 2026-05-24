@@ -836,6 +836,9 @@ class ExamController {
                 this.mainWindow.setKiosk(false);
                 this.mainWindow.setFullScreen(false);
                 this.mainWindow.setAlwaysOnTop(false);
+                this.mainWindow.show();
+                this.mainWindow.focus();
+                this.startRefocusLoop();
             } catch {
                 // ignore
             }
