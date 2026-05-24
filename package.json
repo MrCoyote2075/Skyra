@@ -1,6 +1,6 @@
 {
     "name": "skyra-exam-launcher",
-    "version": "4.0.0",
+    "version": "4.1.0",
     "description": "Secure Exam Launcher",
     "main": "main.js",
     "author": "Dhanu Corporation",
@@ -17,7 +17,8 @@
             "icon": "assets/AppLogo.ico"
         },
         "mac": {
-            "target": "dmg"
+            "target": "dmg",
+            "icon": "assets/AppLogo.icns"
         },
         "linux": {
             "target": "AppImage"
