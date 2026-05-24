@@ -44,6 +44,7 @@ window.addEventListener("DOMContentLoaded", () => {
     document.getElementById("splash-screen").style.display = "none";
     document.getElementById("rules-screen").style.display = "flex";
     ensureHeaderVisible();
+    setPreExamHeaderButtons();
   }, 4000);
 });
 
@@ -54,12 +55,14 @@ async function acceptRules() {
     if (state?.loggedIn) {
       googleLoggedIn = true;
       document.getElementById("login-container").style.display = "block";
+      setPreExamHeaderButtons();
       return;
     }
   } catch {
     // ignore and fall back to login screen
   }
   document.getElementById("google-login-container").style.display = "block";
+  setPreExamHeaderButtons();
 }
 
 function startGoogleLogin() {
@@ -72,6 +75,7 @@ async function confirmGoogleLogin() {
     googleLoggedIn = true;
     document.getElementById("google-login-container").style.display = "none";
     document.getElementById("login-container").style.display = "block";
+    setPreExamHeaderButtons();
   } else {
     showError("Google login not detected yet. Please sign in and try again.");
   }
@@ -134,6 +138,22 @@ function forceQuitApp() {
   window.electronAPI.forceQuit();
 }
 
+async function manualSignOut() {
+  try {
+    await window.electronAPI.signOut();
+  } catch {
+    // ignore and continue local UI reset
+  }
+
+  googleLoggedIn = false;
+  hideAllOverlays();
+  document.getElementById("code").value = "";
+  document.getElementById("login-container").style.display = "none";
+  document.getElementById("rules-screen").style.display = "none";
+  document.getElementById("google-login-container").style.display = "block";
+  setPreExamHeaderButtons();
+}
+
 // --- Warning overlay button: "Return to Exam" ---
 function returnToExam() {
   window.electronAPI.returnToExam();
@@ -160,8 +180,20 @@ function showError(msg) {
 function ensureHeaderVisible() {
   const header = document.getElementById("app-header");
   if (header) header.style.display = "flex";
+}
+
+function setPreExamHeaderButtons() {
   const btnRefresh = document.getElementById("btn-refresh");
+  const btnSignout = document.getElementById("btn-signout");
+  if (btnRefresh) btnRefresh.style.display = "none";
+  if (btnSignout) btnSignout.style.display = "inline-block";
+}
+
+function setInExamHeaderButtons() {
+  const btnRefresh = document.getElementById("btn-refresh");
+  const btnSignout = document.getElementById("btn-signout");
   if (btnRefresh) btnRefresh.style.display = "inline-block";
+  if (btnSignout) btnSignout.style.display = "none";
 }
 
 // --- IPC handlers ---
@@ -170,6 +202,7 @@ window.electronAPI.onGoogleLoginSuccess(() => {
   document.getElementById("google-login-container").style.display = "none";
   document.getElementById("login-container").style.display = "block";
   ensureHeaderVisible();
+  setPreExamHeaderButtons();
 });
 
 window.electronAPI.onShowLoader(() => {
@@ -183,10 +216,14 @@ window.electronAPI.onHideLoader(() => {
 window.electronAPI.onExamStarted(() => {
   document.getElementById("login-container").style.display = "none";
   ensureHeaderVisible();
+  setInExamHeaderButtons();
 });
 
 window.electronAPI.onShowError((event, msg) => {
   ensureHeaderVisible();
+  if (googleLoggedIn && document.getElementById("login-container").style.display !== "none") {
+    setPreExamHeaderButtons();
+  }
   showError(msg);
 });
 

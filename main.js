@@ -724,6 +724,18 @@ class ExamController {
             return { loggedIn: preserveLogin };
         });
 
+        ipcMain.handle("sign-out", async () => {
+            try {
+                await session.defaultSession.clearStorageData();
+            } catch {
+                // ignore
+            }
+            const meta = this.readSessionMeta();
+            meta.lastGoogleLoginAt = 0;
+            this.writeSessionMeta(meta);
+            return { success: true };
+        });
+
     }
 
     createGoogleLoginView() {

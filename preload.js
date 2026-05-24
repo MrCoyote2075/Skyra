@@ -33,5 +33,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   openGoogleLogin: () => ipcRenderer.send("open-google-login"),
   confirmGoogleLogin: () => ipcRenderer.invoke("confirm-google-login"),
   getLoginState: () => ipcRenderer.invoke("get-login-state"),
+  signOut: () => ipcRenderer.invoke("sign-out"),
   onGoogleLoginSuccess: (callback) => ipcRenderer.on("google-login-success", callback),
 });
