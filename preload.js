@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   hideView: () => ipcRenderer.send("hide-view"),
   showView: () => ipcRenderer.send("show-view"),
   resumeExam: () => ipcRenderer.send("resume-exam"),
+  dismissRetry: () => ipcRenderer.send("dismiss-retry"),
 
   // For tab/blur warning return
   returnToExam: () => ipcRenderer.send("return-to-exam"),
@@ -28,6 +29,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onShowTerminated: (callback) => ipcRenderer.on("show-terminated", callback),
   onShowLoader: (callback) => ipcRenderer.on("show-loader", callback),
   onHideLoader: (callback) => ipcRenderer.on("hide-loader", callback),
+  onReturnToAccessCode: (callback) => ipcRenderer.on("return-to-access-code", callback),
 
   // Google login (if used)
   openGoogleLogin: () => ipcRenderer.send("open-google-login"),

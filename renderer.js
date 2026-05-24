@@ -224,9 +224,17 @@ function retryLoad() {
   window.electronAPI.retryLoad();
 }
 
+function showAccessCodePage() {
+  hidePreExamCards();
+  document.getElementById("login-container").style.display = "block";
+  ensureHeaderVisible();
+  setAccessCodeHeaderButtons();
+}
+
 function dismissRetry() {
   hideAllOverlays();
-  window.electronAPI.showView();
+  showAccessCodePage();
+  window.electronAPI.dismissRetry();
 }
 
 function showError(msg) {
@@ -350,6 +358,11 @@ window.electronAPI.onShowRetry((event, payload) => {
       "A recoverable error occurred. Please retry.";
   const o = document.getElementById("retry-overlay");
   if (o) o.style.display = "flex";
+});
+
+window.electronAPI.onReturnToAccessCode(() => {
+  hideAllOverlays();
+  showAccessCodePage();
 });
 
 // --- Fatal error overlay ---

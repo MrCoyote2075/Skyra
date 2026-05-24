@@ -831,6 +831,16 @@ class ExamController {
             this.blurTimer = null;
         }
 
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+            try {
+                this.mainWindow.setKiosk(false);
+                this.mainWindow.setFullScreen(false);
+                this.mainWindow.setAlwaysOnTop(false);
+            } catch {
+                // ignore
+            }
+        }
+
         this.destroyExamView();
 
         if (this.authView && this.mainWindow) {
@@ -1057,6 +1067,23 @@ class ExamController {
             } else {
                 this.safeSend("show-error", "Nothing to retry.");
             }
+        });
+
+        ipcMain.on("dismiss-retry", () => {
+            if (this.blurTimer) {
+                clearTimeout(this.blurTimer);
+                this.blurTimer = null;
+            }
+            if (this.refocusInterval) {
+                clearInterval(this.refocusInterval);
+                this.refocusInterval = null;
+            }
+
+            this.examStarted = false;
+            this.tabSwitchCount = 0;
+            this.destroyExamView();
+
+            this.safeSend("return-to-access-code");
         });
 
         ipcMain.on("refresh-exam", () => {
