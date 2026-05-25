@@ -732,7 +732,7 @@ class ExamController {
             this.blurTimer = setTimeout(() => {
                 this.isExiting = true;
                 this.terminateExam(
-                    "You left the application for more than 6 seconds."
+                    "You left the application for more than 10 seconds."
                 );
             }, CONFIG.BLUR_GRACE_PERIOD_MS);
         });

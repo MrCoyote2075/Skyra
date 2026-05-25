@@ -5,6 +5,7 @@
     "main": "main.js",
     "author": "Dhanu Corporation",
     "scripts": {
+        "prebuild": "node scripts/clean-macos-build.js",
         "start": "electron .",
         "build": "electron-builder",
         "test": "echo \"Error: no test specified\" && exit 1"
@@ -12,6 +13,14 @@
     "build": {
         "appId": "com.dhanucorporation.skyraexamlauncher",
         "productName": "Skyra Exam Launcher",
+        "files": [
+            "index.html",
+            "main.js",
+            "preload.js",
+            "renderer.js",
+            "styles.css",
+            "assets/**/*"
+        ],
         "win": {
             "target": "nsis",
             "icon": "assets/AppLogo.ico"
