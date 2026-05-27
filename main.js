@@ -25,7 +25,7 @@ const CONFIG = {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     MAX_TAB_SWITCHES: 3,
     BLUR_GRACE_PERIOD_MS: 10000,
-    GOOGLE_LOGIN_TTL_MS: 60 * 60 * 1000,
+    GOOGLE_LOGIN_TTL_MS: 30 * 24 * 60 * 60 * 1000,
     ALLOWED_DOMAINS: [
         "hackerearth.com",
         "hackerrank.com",
