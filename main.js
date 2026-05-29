@@ -5,6 +5,7 @@ const {
     BrowserView,
     screen,
     session,
+    powerSaveBlocker,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -25,7 +26,7 @@ const CONFIG = {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     MAX_TAB_SWITCHES: 3,
     BLUR_GRACE_PERIOD_MS: 10000,
-    GOOGLE_LOGIN_TTL_MS: 30 * 24 * 60 * 60 * 1000,
+    GOOGLE_LOGIN_TTL_MS: 10 * 24 * 60 * 60 * 1000,
     ALLOWED_DOMAINS: [
         "hackerearth.com",
         "hackerrank.com",
@@ -53,6 +54,26 @@ class ExamController {
         this.sessionMetaPath = path.join(app.getPath("userData"), SESSION_META_FILE);
         this.refocusInterval = null;
         this.refocusAttempts = 0;
+        this.powerSaveBlockerId = null;
+    }
+
+    startPowerSaveBlocker() {
+        if (
+            this.powerSaveBlockerId === null ||
+            !powerSaveBlocker.isStarted(this.powerSaveBlockerId)
+        ) {
+            this.powerSaveBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+        }
+    }
+
+    stopPowerSaveBlocker() {
+        if (
+            this.powerSaveBlockerId !== null &&
+            powerSaveBlocker.isStarted(this.powerSaveBlockerId)
+        ) {
+            powerSaveBlocker.stop(this.powerSaveBlockerId);
+            this.powerSaveBlockerId = null;
+        }
     }
 
     readSessionMeta() {
@@ -544,6 +565,7 @@ class ExamController {
         app.disableHardwareAcceleration();
 
         app.whenReady().then(async () => {
+            this.startPowerSaveBlocker();
             try {
                 const preserveLogin = await this.shouldPreserveLoginSession();
                 if (!preserveLogin) {
@@ -561,9 +583,13 @@ class ExamController {
             this.registerWindowEvents();
             this.registerIpcHandlers();
         });
-
+        
         app.on("window-all-closed", () => {
             if (process.platform !== "darwin") app.quit();
+        });
+        
+        app.on('before-quit', () => {
+            this.stopPowerSaveBlocker();
         });
     }
 
